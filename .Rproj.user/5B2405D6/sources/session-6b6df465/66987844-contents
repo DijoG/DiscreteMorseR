@@ -1,3 +1,0 @@
-# Test
-library(DiscreteMorseR)
-DiscreteMorseR::get_MIXEDSORT_cpp(c("2", "1", "10", "3", "215", "21", "23 45"))

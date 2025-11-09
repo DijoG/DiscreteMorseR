@@ -231,21 +231,21 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, co
     stop("Package 'furrr' required for parallel processing")
   }
   
-  chunk_size <- ceiling(nrow(vertex) / cores)
+  chunk_size = ceiling(nrow(vertex) / cores)
   
-  partitions <- list()
+  partitions = list()
   for(i in 1:cores) {
-    start <- ((i-1) * chunk_size) + 1
-    end <- min(i * chunk_size, nrow(vertex))
+    start = ((i-1) * chunk_size) + 1
+    end = min(i * chunk_size, nrow(vertex))
     if(start <= nrow(vertex)) {
-      partitions[[i]] <- vertex[start:end, ]
+      partitions[[i]] = vertex[start:end, ]
     }
   }
-  partitions <- partitions[!sapply(partitions, is.null)]
+  partitions = partitions[!sapply(partitions, is.null)]
   
   future::plan(future::multisession, workers = length(partitions))
   
-  results <- furrr::future_map(partitions, function(part) {
+  results = furrr::future_map(partitions, function(part) {
     get_lowerSTAR(part, edge, face, output_dir, cores = 1)
   })
   
@@ -263,23 +263,23 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, co
 compute_morse_complex <- function(mesh, output_dir = NULL, parallel = TRUE, cores = 4) {
   
   message("Step 1: Computing simplices")
-  simplices <- get_SIMPLICES(mesh, output_dir)
+  simplices = get_SIMPLICES(mesh, output_dir)
   
   message("Step 2: Computing lower star filtration")
   if(parallel) {
-    lower_star <- compute_lowerSTAR_parallel(
+    lower_star = compute_lowerSTAR_parallel(
       simplices$vertices, simplices$edges, simplices$faces, 
       output_dir, cores = cores
     )
   } else {
-    lower_star <- get_lowerSTAR(
+    lower_star = get_lowerSTAR(
       simplices$vertices, simplices$edges, simplices$faces, 
       output_dir, cores = 1
     )
   }
   
   message("Step 3: Processing Morse pairings")
-  morse_complex <- proc_lowerSTAR(lower_star, simplices$vertices)
+  morse_complex = proc_lowerSTAR(lower_star, simplices$vertices)
   
   message("Discrete Morse Theory analysis complete!")
   return(list(
@@ -296,8 +296,8 @@ compute_morse_complex <- function(mesh, output_dir = NULL, parallel = TRUE, core
 #' @return Numeric vector of coordinates
 #' @keywords internal
 get_simplex_center <- function(simplex, vertices) {
-  vert_ids <- as.numeric(strsplit(simplex, " ")[[1]])
-  vert_coords <- vertices[vertices$i123 %in% vert_ids, c("X", "Y", "Z")]
+  vert_ids = as.numeric(strsplit(simplex, " ")[[1]])
+  vert_coords = vertices[vertices$i123 %in% vert_ids, c("X", "Y", "Z")]
   
   if (nrow(vert_coords) > 0) {
     c(mean(as.numeric(vert_coords$X)),
@@ -319,17 +319,17 @@ get_simplex_center <- function(simplex, vertices) {
 plot_gradient_field <- function(vector_field, vertices, color, length_scale, alpha) {
   
   for (pair in vector_field) {
-    parts <- strsplit(pair, ":")[[1]]
+    parts = strsplit(pair, ":")[[1]]
     if (length(parts) == 2) {
-      from_simplex <- parts[1]
-      to_simplex <- parts[2]
+      from_simplex = parts[1]
+      to_simplex = parts[2]
       
-      from_coords <- get_simplex_center(from_simplex, vertices)
-      to_coords <- get_simplex_center(to_simplex, vertices)
+      from_coords = get_simplex_center(from_simplex, vertices)
+      to_coords = get_simplex_center(to_simplex, vertices)
       
       if (!any(is.na(from_coords)) && !any(is.na(to_coords))) {
-        arrow_vec <- (to_coords - from_coords) * length_scale
-        scaled_to <- from_coords + arrow_vec
+        arrow_vec = (to_coords - from_coords) * length_scale
+        scaled_to = from_coords + arrow_vec
         
         rgl::arrows3d(from_coords, scaled_to, 
                       color = color, alpha = alpha, lwd = 2)
@@ -348,12 +348,12 @@ plot_gradient_field <- function(vector_field, vertices, color, length_scale, alp
 plot_critical_points <- function(critical, vertices, colors, size) {
   
   for (crit in critical) {
-    parts <- strsplit(crit, " ")[[1]]
+    parts = strsplit(crit, " ")[[1]]
     
     if (length(parts) == 1) {
       # Critical vertex
-      vert_id <- as.numeric(parts[1])
-      vert_data <- vertices[vertices$i123 == vert_id, ]
+      vert_id = as.numeric(parts[1])
+      vert_data = vertices[vertices$i123 == vert_id, ]
       if (nrow(vert_data) > 0) {
         rgl::points3d(as.numeric(vert_data$X), 
                       as.numeric(vert_data$Y), 
@@ -363,11 +363,11 @@ plot_critical_points <- function(critical, vertices, colors, size) {
       
     } else if (length(parts) == 2) {
       # Critical edge (plot midpoint)
-      edge_verts <- as.numeric(parts)
-      v1 <- vertices[vertices$i123 == edge_verts[1], ]
-      v2 <- vertices[vertices$i123 == edge_verts[2], ]
+      edge_verts = as.numeric(parts)
+      v1 = vertices[vertices$i123 == edge_verts[1], ]
+      v2 = vertices[vertices$i123 == edge_verts[2], ]
       if (nrow(v1) > 0 && nrow(v2) > 0) {
-        midpoint <- c(
+        midpoint = c(
           mean(c(as.numeric(v1$X), as.numeric(v2$X))),
           mean(c(as.numeric(v1$Y), as.numeric(v2$Y))),
           mean(c(as.numeric(v1$Z), as.numeric(v2$Z)))
@@ -378,12 +378,12 @@ plot_critical_points <- function(critical, vertices, colors, size) {
       
     } else if (length(parts) == 3) {
       # Critical face (plot centroid)
-      face_verts <- as.numeric(parts)
-      v1 <- vertices[vertices$i123 == face_verts[1], ]
-      v2 <- vertices[vertices$i123 == face_verts[2], ]
-      v3 <- vertices[vertices$i123 == face_verts[3], ]
+      face_verts = as.numeric(parts)
+      v1 = vertices[vertices$i123 == face_verts[1], ]
+      v2 = vertices[vertices$i123 == face_verts[2], ]
+      v3 = vertices[vertices$i123 == face_verts[3], ]
       if (nrow(v1) > 0 && nrow(v2) > 0 && nrow(v3) > 0) {
-        centroid <- c(
+        centroid = c(
           mean(c(as.numeric(v1$X), as.numeric(v2$X), as.numeric(v3$X))),
           mean(c(as.numeric(v1$Y), as.numeric(v2$Y), as.numeric(v3$Y))),
           mean(c(as.numeric(v1$Z), as.numeric(v2$Z), as.numeric(v3$Z)))
@@ -420,9 +420,9 @@ visualize_morse_gradient <- function(mesh, morse_complex, vertex_coords = NULL,
     stop("Package 'MeshesOperations' required for mesh conversion")
   }
   
-  vertices <- morse_complex$simplices$vertices
-  vector_field <- morse_complex$vector_field
-  critical <- morse_complex$critical
+  vertices = morse_complex$simplices$vertices
+  vector_field = morse_complex$vector_field
+  critical = morse_complex$critical
   
   rgl::open3d()
   rgl::bg3d("white")
