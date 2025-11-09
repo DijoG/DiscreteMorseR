@@ -1,0 +1,13 @@
+Package: DiscreteMorseR
+Type: Package
+Title: Morse gradient and critical simplices
+Version: 1.0
+Date: 2025-11-09
+Author: Gergo Dioszegi
+Maintainer: Gergo Dioszegi <dijogergo@gmail.com>
+Description: Computing and visualizing Morse gradient and critical simplices.
+License: MIT 
+Imports: Rcpp (>= 1.0.10)
+LinkingTo: Rcpp
+Encoding: UTF-8
+RoxygenNote: 7.2.3
