@@ -22,18 +22,32 @@ add_DECIMAL <- function(x, k) format(round(x, k), nsmall = k)
 #' @return Data table with lexicographically sorted labels
 #' @keywords internal
 get_lexIDLAB <- function(df) {
-  LA = stringr::str_trim(df$label, "both")
-  m1 = purrr::map(stringr::str_split(LA, " "), ~get_MIXEDSORT_cpp(add_DECIMAL(as.numeric(.), k = 9)))
-  IDLA = stringr::str_trim(df$idlabel, "both")
-  mlab = purrr::map2(stringr::str_split(LA, " "), m1, ~.x[.y] %>% stringr::str_c(., collapse = " "))
-  mid = purrr::map2(stringr::str_split(IDLA, " "), m1, ~.x[.y] %>% stringr::str_c(., collapse = " "))
+  # Convert to data.table if not already
+  dt = as.data.table(df)
   
-  dt1 = data.table::data.table(LA, IDLA) 
-  dt2 = data.table::data.table(do.call(rbind, mlab)) 
-  dt3 = data.table::data.table(do.call(rbind, mid)) 
-  dt = cbind(dt1, dt2, dt3)
-  data.table::setnames(dt, new = c("label", "idlabel", "lexi_label", "lexi_id"))
-  return(dt)
+  # Process labels
+  LA = str_trim(dt$label, "both")
+  IDLA = str_trim(dt$idlabel, "both")
+  
+  # Use data.table operations for better performance
+  m1 = lapply(str_split(LA, " "), function(x) {
+    get_MIXEDSORT_cpp(add_DECIMAL(as.numeric(x), k = 9))
+  })
+  
+  # Create sorted labels using data.table
+  mlab = mapply(function(x, y) paste(x[y], collapse = " "), 
+                 str_split(LA, " "), m1, SIMPLIFY = FALSE)
+  
+  mid = mapply(function(x, y) paste(x[y], collapse = " "), 
+                str_split(IDLA, " "), m1, SIMPLIFY = FALSE)
+  
+  # Return as data.table
+  result = data.table(
+    lexi_label = unlist(mlab),
+    lexi_id = unlist(mid)
+  )
+  
+  return(result)
 }
 
 #' Extract and process simplices from mesh
@@ -45,77 +59,67 @@ get_lexIDLAB <- function(df) {
 get_SIMPLICES <- function(mesh, txt_dirout = "") {
   
   # Vertices (0-simplex)
-  mesh_ver = mesh$vertices %>%
-    data.table::data.table() %>%
-    data.table::setnames(., c("X", "Y", "Z")) %>%
-    dplyr::mutate(i123 = 1:dplyr::n(), .before = 1) %>%
-    dplyr::distinct() %>% 
-    dplyr::mutate(Z = as.character(Z))
+  mesh_ver = as.data.table(mesh$vertices)
+  setnames(mesh_ver, c("X", "Y", "Z"))
+  mesh_ver[, i123 := .I]
+  mesh_ver = unique(mesh_ver)
+  mesh_ver[, Z := as.character(Z)]
   
   if (txt_dirout != "") {
-    readr::write_tsv(mesh_ver, stringr::str_c(txt_dirout, "/trees_mesh_ver.txt"))
+    fwrite(mesh_ver, file.path(txt_dirout, "trees_mesh_ver.txt"), sep = "\t")
   }
   
   # Edges (1-simplex)
-  ldf = list(mesh$edgesDF %>%
-               data.table::data.table() %>%
-               dplyr::select(-dplyr::any_of(c("angle", "exterior", "coplanar"))), mesh_ver)
+  mesh_edge = as.data.table(mesh$edgesDF)
+  # Remove unnecessary columns if they exist
+  cols_to_remove = c("angle", "exterior", "coplanar")
+  mesh_edge[, (cols_to_remove) := NULL]
   
-  mesh_edge = ldf %>%
-    purrr::reduce(dplyr::left_join, by = c("i1" = "i123")) %>%
-    dplyr::rename(ii1X = X, ii1Y = Y, ii1Z = Z)
+  # Merge with vertex coordinates
+  mesh_edge[mesh_ver, `:=`(ii1X = X, ii1Y = Y, ii1Z = Z), on = c("i1" = "i123")]
+  mesh_edge[mesh_ver, `:=`(ii2X = X, ii2Y = Y, ii2Z = Z), on = c("i2" = "i123")]
   
-  ldf = list(mesh_edge, mesh_ver)
+  # Create labels
+  mesh_edge[, label := paste(ii1Z, ii2Z, sep = " ")]
+  mesh_edge[, idlabel := paste(i1, i2, sep = " ")]
   
-  mesh_edge = ldf %>%
-    purrr::reduce(dplyr::left_join, by = c("i2" = "i123")) %>%
-    dplyr::rename(ii2X = X, ii2Y = Y, ii2Z = Z) %>%
-    dplyr::mutate(
-      label = stringr::str_c(as.character(ii1Z), as.character(ii2Z), sep = " "),
-      idlabel = stringr::str_c(as.character(i1), as.character(i2), sep = " ")
-    )
+  # Get lexicographic ordering
+  out_edge = get_lexIDLAB(mesh_edge)
   
-  out = get_lexIDLAB(mesh_edge)
+  # Merge results - data.table way
+  mesh_edge_final = cbind(mesh_edge, out_edge)
   
   if (txt_dirout != "") {
-    readr::write_tsv(mesh_edge %>% dplyr::bind_cols(out), stringr::str_c(txt_dirout, "/trees_mesh_edge.txt"))
+    fwrite(mesh_edge_final, file.path(txt_dirout, "trees_mesh_edge.txt"), sep = "\t")
   }
   
   # Faces (2-simplex)
-  ldfa = list(mesh$faces %>%
-                data.table::data.table() %>%
-                data.table::setnames(., c("i1", "i2", "i3")), mesh_ver)
+  mesh_face = as.data.table(mesh$faces)
+  setnames(mesh_face, c("i1", "i2", "i3"))
   
-  mesh_f = ldfa %>%
-    purrr::reduce(dplyr::left_join, by = c("i1" = "i123")) %>%
-    dplyr::rename(ii1X = X, ii1Y = Y, ii1Z = Z)
+  # Merge with vertex coordinates
+  mesh_face[mesh_ver, `:=`(ii1X = X, ii1Y = Y, ii1Z = Z), on = c("i1" = "i123")]
+  mesh_face[mesh_ver, `:=`(ii2X = X, ii2Y = Y, ii2Z = Z), on = c("i2" = "i123")]
+  mesh_face[mesh_ver, `:=`(ii3X = X, ii3Y = Y, ii3Z = Z), on = c("i3" = "i123")]
   
-  ldfa = list(mesh_f, mesh_ver)
+  # Create labels
+  mesh_face[, label := paste(ii1Z, ii2Z, ii3Z, sep = " ")]
+  mesh_face[, idlabel := paste(i1, i2, i3, sep = " ")]
   
-  mesh_f = ldfa %>%
-    purrr::reduce(dplyr::left_join, by = c("i2" = "i123")) %>%
-    dplyr::rename(ii2X = X, ii2Y = Y, ii2Z = Z)
+  # Get lexicographic ordering
+  out_face = get_lexIDLAB(mesh_face)
   
-  ldfa = list(mesh_f, mesh_ver)
-  
-  mesh_face = ldfa %>%
-    purrr::reduce(dplyr::left_join, by = c("i3" = "i123")) %>%
-    dplyr::rename(ii3X = X, ii3Y = Y, ii3Z = Z) %>%
-    dplyr::mutate(
-      label = stringr::str_c(as.character(ii1Z), as.character(ii2Z), as.character(ii3Z), sep = " "),
-      idlabel = stringr::str_c(as.character(i1), as.character(i2), as.character(i3), sep = " ")
-    )
-  
-  out = get_lexIDLAB(mesh_face)
+  # Merge results
+  mesh_face_final = cbind(mesh_face, out_face)
   
   if (txt_dirout != "") {
-    readr::write_tsv(mesh_face %>% dplyr::bind_cols(out), stringr::str_c(txt_dirout, "/trees_mesh_face.txt"))
+    fwrite(mesh_face_final, file.path(txt_dirout, "trees_mesh_face.txt"), sep = "\t")
   }
   
   return(list(
     vertices = mesh_ver,
-    edges = mesh_edge %>% dplyr::bind_cols(out),
-    faces = mesh_face %>% dplyr::bind_cols(out)
+    edges = mesh_edge_final,
+    faces = mesh_face_final
   ))
 }
 
