@@ -229,40 +229,79 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
               CR_ = CR_ %>% na.omit() %>% unique() %>% gtools::mixedsort()))
 }
 
-#' Compute lower star in parallel
+#' Compute lower star in parallel with batching
 #'
 #' @param vertex Vertex data
 #' @param edge Edge data
 #' @param face Face data
 #' @param output_dir Output directory
-#' @param cores Number of cores (4-12)
+#' @param cores Number of cores (default: available cores-1)
+#' @param batch_size Number of vertices per batch (default: auto-calculated)
 #' @return Combined lower star results
 #' @export
-compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, cores = 4) {
+compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
+                                       cores = NULL, batch_size = NULL) {
   
   if (!requireNamespace("furrr", quietly = TRUE)) {
     stop("Package 'furrr' required for parallel processing")
   }
   
-  chunk_size = ceiling(nrow(vertex) / cores)
-  
-  partitions = list()
-  for(i in 1:cores) {
-    start = ((i-1) * chunk_size) + 1
-    end = min(i * chunk_size, nrow(vertex))
-    if(start <= nrow(vertex)) {
-      partitions[[i]] = vertex[start:end, ]
-    }
+  # Auto-detect cores if not specified
+  if (is.null(cores)) {
+    cores = parallel::detectCores()-1
+    message("Auto-detected ", cores, " cores")
   }
-  partitions = partitions[!sapply(partitions, is.null)]
   
-  future::plan(future::multisession, workers = length(partitions))
+  n_vertex = nrow(vertex)
   
-  results = furrr::future_map(partitions, function(part) {
-    get_lowerSTAR(part, edge, face, output_dir, cores = 1)
-  })
+  # Auto-calculate optimal batch size
+  if (is.null(batch_size)) {
+    batch_size = ceiling(n_vertex / (cores * 3))  # 3 batches per core for good load balancing
+    batch_size = max(batch_size, 1000)            # Minimum batch size
+    batch_size = min(batch_size, 50000)           # Maximum batch size
+  }
   
-  unlist(results, recursive = FALSE)
+  total_batches = ceiling(n_vertex / batch_size)
+  simultaneous_batches = min(cores, total_batches)
+  
+  message("=== Parallel Lower Star Computation ===")
+  message("Vertices: ", n_vertex)
+  message("Cores: ", cores)
+  message("Batch size: ", batch_size, " vertices")
+  message("Total batches: ", total_batches)
+  message("Simultaneous batches: ", simultaneous_batches)
+  message("=======================================")
+  
+  # Create batch indices
+  batch_indices = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
+  
+  # Set up parallel processing
+  future::plan(future::multisession, workers = cores)
+  
+  # Process batches in parallel
+  results = furrr::future_map(batch_indices, function(indices) {
+    batch_num = which(sapply(batch_indices, function(x) identical(x, indices)))
+    
+    message("🔄 Batch ", batch_num, "/", total_batches, " started (vertices ", 
+            min(indices), "-", max(indices), ")")
+    
+    batch_vertex = vertex[indices, ]
+    batch_result = get_lowerSTAR(batch_vertex, edge, face, output_dir, cores = 1)
+    
+    message("✅ Batch ", batch_num, "/", total_batches, " completed - ", 
+            length(batch_result), " lower star sets found")
+    
+    return(batch_result)
+  }, .options = furrr::furrr_options(seed = TRUE))
+  
+  # Combine results
+  final_results = unlist(results, recursive = FALSE)
+  
+  message("🎉 All batches completed successfully!")
+  message("📊 Total lower star sets: ", length(final_results))
+  message("=======================================")
+  
+  return(final_results)
 }
 
 #' Compute Morse complex from mesh

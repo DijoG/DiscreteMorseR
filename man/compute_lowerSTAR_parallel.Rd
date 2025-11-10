@@ -2,9 +2,16 @@
 % Please edit documentation in R/DiscreteMorseR.R
 \name{compute_lowerSTAR_parallel}
 \alias{compute_lowerSTAR_parallel}
-\title{Compute lower star in parallel}
+\title{Compute lower star in parallel with batching}
 \usage{
-compute_lowerSTAR_parallel(vertex, edge, face, output_dir = NULL, cores = 4)
+compute_lowerSTAR_parallel(
+  vertex,
+  edge,
+  face,
+  output_dir = NULL,
+  cores = NULL,
+  batch_size = NULL
+)
 }
 \arguments{
 \item{vertex}{Vertex data}
@@ -15,11 +22,13 @@ compute_lowerSTAR_parallel(vertex, edge, face, output_dir = NULL, cores = 4)
 
 \item{output_dir}{Output directory}
 
-\item{cores}{Number of cores (4-12)}
+\item{cores}{Number of cores (default: available cores-1)}
+
+\item{batch_size}{Number of vertices per batch (default: auto-calculated)}
 }
 \value{
 Combined lower star results
 }
 \description{
-Compute lower star in parallel
+Compute lower star in parallel with batching
 }
