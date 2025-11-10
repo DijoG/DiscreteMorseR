@@ -2,7 +2,7 @@
 % Please edit documentation in R/DiscreteMorseR.R
 \name{compute_lowerSTAR_parallel}
 \alias{compute_lowerSTAR_parallel}
-\title{Compute lower star in parallel (simple and reliable)}
+\title{Compute lower star in parallel (with progress)}
 \usage{
 compute_lowerSTAR_parallel(
   vertex,
@@ -30,5 +30,5 @@ compute_lowerSTAR_parallel(
 Combined lower star results
 }
 \description{
-Compute lower star in parallel (simple and reliable)
+Compute lower star in parallel (with progress)
 }

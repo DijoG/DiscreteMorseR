@@ -229,7 +229,7 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
               CR_ = CR_ %>% na.omit() %>% unique() %>% gtools::mixedsort()))
 }
 
-#' Compute lower star in parallel (simple and reliable)
+#' Compute lower star in parallel (with progress)
 #'
 #' @param vertex Vertex data
 #' @param edge Edge data
@@ -261,27 +261,43 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   }
   
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
+  total_batches = length(batches)
   
-  message("Parallel computation: ", n_vertex, " vertices, ", 
-          length(batches), " batches, ", cores, " cores")
+  message("=== Parallel Lower Star Computation ===")
+  message("Vertices: ", n_vertex)
+  message("Batches: ", total_batches) 
+  message("Cores: ", cores)
+  message("Batch size: ~", round(n_vertex / total_batches), " vertices")
+  message("=======================================")
   
   # Set up parallel processing
   future::plan(future::multisession, workers = cores)
   
-  # Simple batch processor using the original get_lowerSTAR
-  process_batch = function(batch_indices) {
+  # Simple batch processor
+  process_batch = function(batch_indices, batch_num) {
     batch_vertex = vertex[batch_indices, ]
-    get_lowerSTAR(batch_vertex, edge, face, output_dir, cores = 1)
+    result = get_lowerSTAR(batch_vertex, edge, face, output_dir, cores = 1)
+    
+    message("Batch ", batch_num, "/", total_batches, " complete")
+    
+    return(result)
   }
   
-  # Process batches in parallel
-  results = furrr::future_map(batches, process_batch, 
-                              .options = furrr::furrr_options(seed = TRUE))
+  # Add batch numbers
+  batch_list = lapply(seq_along(batches), function(i) {
+    list(indices = batches[[i]], number = i)
+  })
+  
+  # Process with progress
+  results = furrr::future_map(batch_list, function(batch) {
+    process_batch(batch$indices, batch$number)
+  }, .options = furrr::furrr_options(seed = TRUE), .progress = TRUE)
   
   # Combine results
   final_results = unlist(results, recursive = FALSE)
   
-  message("Parallel computation complete: ", length(final_results), " lower star sets")
+  message("=======================================")
+  message("✅ Complete: ", length(final_results), " lower star sets found")
   
   return(final_results)
 }
