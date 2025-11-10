@@ -154,7 +154,7 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
       
       tf = purrr::map(vertTO$lexi_label, ~ stringr::str_split_1(., " ")[1] %>% as.double) <= as.double(vertex[i,]$Z)
       
-      lowerSTAR[[i]] = vertTO[tf] %>% 
+      lowerSTAR[[i]] = vertTO[tf,] %>% 
         dplyr::mutate(id = vertex$i123[i], .before = 1)
       
       if (!is.null(dirout)) {
