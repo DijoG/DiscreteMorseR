@@ -22,14 +22,13 @@ add_DECIMAL <- function(x, k) format(round(x, k), nsmall = k)
 #' @return Data table with lexicographically sorted labels
 #' @keywords internal
 get_lexIDLAB <- function(df) {
-  # Convert to data.table if not already
+  
   dt = as.data.table(df)
   
   # Process labels
   LA = str_trim(dt$label, "both")
   IDLA = str_trim(dt$idlabel, "both")
   
-  # Use data.table operations for better performance
   m1 = lapply(str_split(LA, " "), function(x) {
     get_MIXEDSORT_cpp(add_DECIMAL(as.numeric(x), k = 9))
   })
@@ -58,26 +57,28 @@ get_lexIDLAB <- function(df) {
 #' @keywords internal
 get_SIMPLICES <- function(mesh, txt_dirout = "") {
   
-  # Vertices (0-simplex)
-  mesh_ver = as.data.table(mesh$vertices)
-  setnames(mesh_ver, c("X", "Y", "Z"))
-  mesh_ver[, i123 := .I]
+  # Vertices (0-simplex) 
+  mesh_ver = data.table::as.data.table(mesh$vertices)
+  data.table::setnames(mesh_ver, c("X", "Y", "Z"))
+  mesh_ver[, i123 := .I]  # Now this will work since it's a data.table
   mesh_ver = unique(mesh_ver)
   mesh_ver[, Z := as.character(Z)]
   
   if (txt_dirout != "") {
-    fwrite(mesh_ver, file.path(txt_dirout, "trees_mesh_ver.txt"), sep = "\t")
+    data.table::fwrite(mesh_ver, file.path(txt_dirout, "trees_mesh_ver.txt"), sep = "\t")
   }
   
   # Edges (1-simplex)
-  mesh_edge = as.data.table(mesh$edgesDF)
-  # Remove unnecessary columns if they exist
+  mesh_edge = data.table::as.data.table(mesh$edgesDF)
   cols_to_remove = c("angle", "exterior", "coplanar")
-  mesh_edge[, (cols_to_remove) := NULL]
+  existing_cols = cols_to_remove[cols_to_remove %in% names(mesh_edge)]
+  if (length(existing_cols) > 0) {
+    mesh_edge[, (existing_cols) := NULL]
+  }
   
-  # Merge with vertex coordinates
-  mesh_edge[mesh_ver, `:=`(ii1X = X, ii1Y = Y, ii1Z = Z), on = c("i1" = "i123")]
-  mesh_edge[mesh_ver, `:=`(ii2X = X, ii2Y = Y, ii2Z = Z), on = c("i2" = "i123")]
+  # Merge with vertex coordinates 
+  mesh_edge[mesh_ver, `:=`(ii1X = i.X, ii1Y = i.Y, ii1Z = i.Z), on = c("i1" = "i123")]
+  mesh_edge[mesh_ver, `:=`(ii2X = i.X, ii2Y = i.Y, ii2Z = i.Z), on = c("i2" = "i123")]
   
   # Create labels
   mesh_edge[, label := paste(ii1Z, ii2Z, sep = " ")]
@@ -90,17 +91,17 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
   mesh_edge_final = cbind(mesh_edge, out_edge)
   
   if (txt_dirout != "") {
-    fwrite(mesh_edge_final, file.path(txt_dirout, "trees_mesh_edge.txt"), sep = "\t")
+    data.table::fwrite(mesh_edge_final, file.path(txt_dirout, "trees_mesh_edge.txt"), sep = "\t")
   }
   
-  # Faces (2-simplex)
-  mesh_face = as.data.table(mesh$faces)
-  setnames(mesh_face, c("i1", "i2", "i3"))
+  # Faces (2-simplex) 
+  mesh_face = data.table::as.data.table(mesh$faces)
+  data.table::setnames(mesh_face, c("i1", "i2", "i3"))
   
   # Merge with vertex coordinates
-  mesh_face[mesh_ver, `:=`(ii1X = X, ii1Y = Y, ii1Z = Z), on = c("i1" = "i123")]
-  mesh_face[mesh_ver, `:=`(ii2X = X, ii2Y = Y, ii2Z = Z), on = c("i2" = "i123")]
-  mesh_face[mesh_ver, `:=`(ii3X = X, ii3Y = Y, ii3Z = Z), on = c("i3" = "i123")]
+  mesh_face[mesh_ver, `:=`(ii1X = i.X, ii1Y = i.Y, ii1Z = i.Z), on = c("i1" = "i123")]
+  mesh_face[mesh_ver, `:=`(ii2X = i.X, ii2Y = i.Y, ii2Z = i.Z), on = c("i2" = "i123")]
+  mesh_face[mesh_ver, `:=`(ii3X = i.X, ii3Y = i.Y, ii3Z = i.Z), on = c("i3" = "i123")]
   
   # Create labels
   mesh_face[, label := paste(ii1Z, ii2Z, ii3Z, sep = " ")]
@@ -113,7 +114,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
   mesh_face_final = cbind(mesh_face, out_face)
   
   if (txt_dirout != "") {
-    fwrite(mesh_face_final, file.path(txt_dirout, "trees_mesh_face.txt"), sep = "\t")
+    data.table::fwrite(mesh_face_final, file.path(txt_dirout, "trees_mesh_face.txt"), sep = "\t")
   }
   
   return(list(
