@@ -145,7 +145,7 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
   
   lowerSTAR = list()
   for (i in 1:nrow(vertex)) {
-    vertTO = get_vertTO_cpp(vertex[i], edge, face) %>%
+    vertTO = get_vertTO_cpp(vertex[i,], edge, face) %>%
       data.table::data.table() 
     
     if (nrow(vertTO) > 0) {
