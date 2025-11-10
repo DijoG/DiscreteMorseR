@@ -1,5 +1,5 @@
 #include <Rcpp.h>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 #include <sstream>
 using namespace Rcpp;
@@ -17,57 +17,64 @@ DataFrame get_vertTO_cpp(DataFrame vertex, DataFrame edge, DataFrame face) {
   CharacterVector face_lexi_id = face["lexi_id"];
   CharacterVector face_lexi_label = face["lexi_label"];
   
-  // Pre-process: Create lookup sets for edges and faces
-  std::vector<std::unordered_set<std::string>> edge_sets(n_edge);
-  std::vector<std::unordered_set<std::string>> face_sets(n_face);
+  // Create lookup map: vertex_id -> vector of edge/face indices
+  std::unordered_map<std::string, std::vector<int>> vertex_to_edges;
+  std::unordered_map<std::string, std::vector<int>> vertex_to_faces;
   
-  // Parse edge vertices into sets (silent)
+  // Pre-process edges: Build lookup in O(n_edge)
   for (int j = 0; j < n_edge; j++) {
     std::string edge_str = as<std::string>(edge_lexi_id[j]);
     std::istringstream iss(edge_str);
     std::string token;
     while (iss >> token) {
-      edge_sets[j].insert(token);
+      vertex_to_edges[token].push_back(j);
     }
   }
   
-  // Parse face vertices into sets (silent)  
+  // Pre-process faces: Build lookup in O(n_face)  
   for (int j = 0; j < n_face; j++) {
     std::string face_str = as<std::string>(face_lexi_id[j]);
     std::istringstream iss(face_str);
     std::string token;
     while (iss >> token) {
-      face_sets[j].insert(token);
+      vertex_to_faces[token].push_back(j);
     }
   }
   
-  // Output vectors
-  CharacterVector vertTO_lexi_label;
-  CharacterVector vertTO_lexi_id;
+  // Output vectors - use std::vector for efficient growth
+  std::vector<std::string> vertTO_lexi_label;
+  std::vector<std::string> vertTO_lexi_id;
   
-  // Main processing with O(1) lookups (silent)
+  // Reserve space for efficiency
+  vertTO_lexi_label.reserve(n_vertex * 12);
+  vertTO_lexi_id.reserve(n_vertex * 12);
+  
+  // Main processing: O(n_vertex) with direct lookups!
   for (int i = 0; i < n_vertex; i++) {
     std::string v_id = as<std::string>(vertex_i123[i]);
     
-    // Check edges - O(1) lookup per edge!
-    for (int j = 0; j < n_edge; j++) {
-      if (edge_sets[j].find(v_id) != edge_sets[j].end()) {
-        vertTO_lexi_id.push_back(edge_lexi_id[j]);
-        vertTO_lexi_label.push_back(edge_lexi_label[j]);
+    // Lookup edges for this vertex - O(1)
+    auto edge_it = vertex_to_edges.find(v_id);
+    if (edge_it != vertex_to_edges.end()) {
+      for (int edge_idx : edge_it->second) {
+        vertTO_lexi_id.push_back(as<std::string>(edge_lexi_id[edge_idx]));
+        vertTO_lexi_label.push_back(as<std::string>(edge_lexi_label[edge_idx]));
       }
     }
     
-    // Check faces - O(1) lookup per face!
-    for (int j = 0; j < n_face; j++) {
-      if (face_sets[j].find(v_id) != face_sets[j].end()) {
-        vertTO_lexi_id.push_back(face_lexi_id[j]);
-        vertTO_lexi_label.push_back(face_lexi_label[j]);
+    // Lookup faces for this vertex - O(1)
+    auto face_it = vertex_to_faces.find(v_id);
+    if (face_it != vertex_to_faces.end()) {
+      for (int face_idx : face_it->second) {
+        vertTO_lexi_id.push_back(as<std::string>(face_lexi_id[face_idx]));
+        vertTO_lexi_label.push_back(as<std::string>(face_lexi_label[face_idx]));
       }
     }
   }
   
+  // Convert back to Rcpp vectors
   return DataFrame::create(
-    Named("lexi_label") = vertTO_lexi_label, 
-    Named("lexi_id") = vertTO_lexi_id
+    Named("lexi_label") = CharacterVector(vertTO_lexi_label.begin(), vertTO_lexi_label.end()),
+    Named("lexi_id") = CharacterVector(vertTO_lexi_id.begin(), vertTO_lexi_id.end())
   );
 }
