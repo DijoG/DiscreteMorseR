@@ -170,64 +170,6 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
   }
 }
 
-#' Compute lower star filtration (SILENT VERSION for parallel)
-#'
-#' @param vertex Vertex data
-#' @param edge Edge data  
-#' @param face Face data
-#' @param dirout Output directory (optional)
-#' @return List of lower star sets
-#' @keywords internal
-get_lowerSTAR_fast <- function(vertex, edge, face, dirout = NULL) {
-  library(data.table)
-  
-  # Convert to data.table
-  vertex_dt = as.data.table(vertex)
-  edge_dt = as.data.table(edge) 
-  face_dt = as.data.table(face)
-  
-  # Get all connections at once (SILENT)
-  all_connections = get_vertTO_cpp(vertex, edge, face)
-  connections_dt = as.data.table(all_connections)
-  
-  # Parse simplex labels to extract first vertex Z value
-  connections_dt[, first_vertex_z := as.numeric(sapply(strsplit(lexi_label, " "), `[`, 1))]
-  connections_dt[, contains_vertex := sapply(lexi_id, function(x) {
-    strsplit(x, " ")[[1]]
-  })]
-  
-  # Create expanded table with vertex-simplex pairs
-  expanded = connections_dt[, .(vertex_id = unlist(contains_vertex)), 
-                             by = .(lexi_id, lexi_label, first_vertex_z)]
-  
-  # Join with vertex Z values
-  vertex_z = vertex_dt[, .(vertex_id = as.character(i123), vertex_z = as.numeric(Z))]
-  expanded = vertex_z[expanded, on = "vertex_id"]
-  
-  # Filter: first_vertex_z <= vertex_z
-  filtered = expanded[first_vertex_z <= vertex_z, ]
-  
-  # Group by vertex and create lowerSTAR lists
-  lowerSTAR_list = filtered[, {
-    sorted_simplices = .SD[order(gtools::mixedorder(lexi_label, decreasing = FALSE))]
-    list(list(sorted_simplices[, .(lexi_label, lexi_id)]))
-  }, by = .(vertex_id, vertex_z)]
-  
-  # Convert to final format
-  lowerSTAR = vector("list", nrow(vertex_dt))
-  for (i in seq_len(nrow(lowerSTAR_list))) {
-    idx = which(vertex_dt$i123 == as.integer(lowerSTAR_list$vertex_id[i]))
-    if (length(idx) > 0) {
-      result = lowerSTAR_list$V1[[i]]
-      result[, id := as.integer(lowerSTAR_list$vertex_id[i])]
-      setcolorder(result, "id")
-      lowerSTAR[[idx]] = result
-    }
-  }
-  
-  return(lowerSTAR)
-}
-
 #' Process lower star to get Morse pairings
 #'
 #' @param list_lowerSTAR Lower star data
@@ -287,20 +229,18 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
               CR_ = CR_ %>% na.omit() %>% unique() %>% gtools::mixedsort()))
 }
 
-#' Compute lower star in parallel with proper progress tracking
+#' Compute lower star in parallel (simple and reliable)
 #'
 #' @param vertex Vertex data
 #' @param edge Edge data
 #' @param face Face data
 #' @param output_dir Output directory
 #' @param cores Number of cores (default: available cores-1)
-#' @param batch_size Number of vertices per batch (default: auto-calculated)
-#' @param fast_method Use fast data.table method (default: TRUE)
+#' @param batch_size Number of vertices per batch
 #' @return Combined lower star results
 #' @export
 compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
-                                       cores = NULL, batch_size = NULL, 
-                                       fast_method = TRUE) {
+                                       cores = NULL, batch_size = 1000) {
   
   if (!requireNamespace("furrr", quietly = TRUE)) {
     stop("Package 'furrr' required for parallel processing")
@@ -309,45 +249,34 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   # Auto-detect cores if not specified
   if (is.null(cores)) {
     cores = parallel::detectCores() - 1
-    message("Using ", cores, " cores for parallel computation")
   }
   
   n_vertex = nrow(vertex)
   
-  # Auto-calculate optimal batch size
+  # Calculate batches
   if (is.null(batch_size)) {
     batch_size = ceiling(n_vertex / (cores * 3))
     batch_size = max(batch_size, 1000)
     batch_size = min(batch_size, 50000)
   }
   
-  total_batches = ceiling(n_vertex / batch_size)
+  batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   
-  message("Parallel lower star computation: ", n_vertex, " vertices, ", 
-          total_batches, " batches, ", cores, " cores")
-  
-  # Create batch indices
-  batch_indices = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
+  message("Parallel computation: ", n_vertex, " vertices, ", 
+          length(batches), " batches, ", cores, " cores")
   
   # Set up parallel processing
   future::plan(future::multisession, workers = cores)
   
-  # Choose the appropriate function
-  if (fast_method) {
-    process_batch = function(indices) {
-      batch_vertex = vertex[indices, ]
-      get_lowerSTAR_fast(batch_vertex, edge, face, output_dir)
-    }
-  } else {
-    process_batch = function(indices) {
-      batch_vertex = vertex[indices, ]
-      get_lowerSTAR_optimized(batch_vertex, edge, face, output_dir, cores = 1)
-    }
+  # Simple batch processor using the original get_lowerSTAR
+  process_batch = function(batch_indices) {
+    batch_vertex = vertex[batch_indices, ]
+    get_lowerSTAR(batch_vertex, edge, face, output_dir, cores = 1)
   }
   
-  # Process batches in parallel with progress
-  results = furrr::future_map(batch_indices, process_batch, 
-                               .options = furrr::furrr_options(seed = TRUE))
+  # Process batches in parallel
+  results = furrr::future_map(batches, process_batch, 
+                              .options = furrr::furrr_options(seed = TRUE))
   
   # Combine results
   final_results = unlist(results, recursive = FALSE)
@@ -357,17 +286,17 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   return(final_results)
 }
 
-#' Compute Morse complex from mesh (OPTIMIZED)
+#' Compute Morse complex from mesh
 #'
 #' @param mesh Mesh object from MeshesOperations
 #' @param output_dir Optional directory to save results
 #' @param parallel Whether to use parallel processing (default: TRUE)
 #' @param cores Number of cores for parallel processing (default: 4)
-#' @param fast_method Use fast data.table method (default: TRUE)
 #' @return List with Morse vector field and critical simplices
 #' @export
-compute_morse_complex <- function(mesh, output_dir = NULL, parallel = TRUE, 
-                                  cores = 4, fast_method = TRUE) {
+compute_morse_complex <- function(mesh, output_dir = NULL, 
+                                  parallel = TRUE, 
+                                  cores = 4) {
   
   message("Step 1: Computing simplices")
   simplices = get_SIMPLICES(mesh, output_dir)
@@ -376,14 +305,10 @@ compute_morse_complex <- function(mesh, output_dir = NULL, parallel = TRUE,
   if (parallel) {
     lower_star = compute_lowerSTAR_parallel(
       simplices$vertices, simplices$edges, simplices$faces, 
-      output_dir, cores = cores, fast_method = fast_method
+      output_dir, cores = cores
     )
   } else {
-    if (fast_method) {
-      lower_star = get_lowerSTAR_fast(simplices$vertices, simplices$edges, simplices$faces)
-    } else {
-      lower_star = get_lowerSTAR(simplices$vertices, simplices$edges, simplices$faces)
-    }
+    lower_star = get_lowerSTAR(simplices$vertices, simplices$edges, simplices$faces, output_dir)
   }
   
   message("Step 3: Processing Morse pairings")

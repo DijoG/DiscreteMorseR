@@ -2,15 +2,9 @@
 % Please edit documentation in R/DiscreteMorseR.R
 \name{compute_morse_complex}
 \alias{compute_morse_complex}
-\title{Compute Morse complex from mesh (OPTIMIZED)}
+\title{Compute Morse complex from mesh}
 \usage{
-compute_morse_complex(
-  mesh,
-  output_dir = NULL,
-  parallel = TRUE,
-  cores = 4,
-  fast_method = TRUE
-)
+compute_morse_complex(mesh, output_dir = NULL, parallel = TRUE, cores = 4)
 }
 \arguments{
 \item{mesh}{Mesh object from MeshesOperations}
@@ -20,12 +14,10 @@ compute_morse_complex(
 \item{parallel}{Whether to use parallel processing (default: TRUE)}
 
 \item{cores}{Number of cores for parallel processing (default: 4)}
-
-\item{fast_method}{Use fast data.table method (default: TRUE)}
 }
 \value{
 List with Morse vector field and critical simplices
 }
 \description{
-Compute Morse complex from mesh (OPTIMIZED)
+Compute Morse complex from mesh
 }
