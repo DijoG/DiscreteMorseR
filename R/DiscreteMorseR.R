@@ -542,7 +542,11 @@ visualize_morse_2d <- function(morse_complex,
   critical = morse_complex$critical
   
   # Convert vertices to matrix for C++ (FASTER)
-  vertices_matrix = as.matrix(vertices[, c("X", "Y", "Z")])
+  vertices_matrix = as.matrix(data.frame(
+    X = as.numeric(vertices$X),
+    Y = as.numeric(vertices$Y),
+    Z = as.numeric(vertices$Z)  
+  ))
   
   # Pre-sample if needed
   if (plot_gradient && length(vector_field) > max_points) {
