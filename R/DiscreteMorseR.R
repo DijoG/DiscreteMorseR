@@ -567,8 +567,8 @@ visualize_morse_2d <- function(morse_complex,
       parts = strsplit(pair, ":", fixed = TRUE)[[1]]
       if (length(parts) == 2) {
         # Use C++ version
-        from_coords = get_simplex_center_fastest(parts[1], vertices_matrix)
-        to_coords = get_simplex_center_fastest(parts[2], vertices_matrix)
+        from_coords = get_simplexCENTER(parts[1], vertices_matrix)
+        to_coords = get_simplexCENTER(parts[2], vertices_matrix)
         
         if (!any(is.na(from_coords)) && !any(is.na(to_coords))) {
           if (projection == "XY") {
@@ -608,7 +608,7 @@ visualize_morse_2d <- function(morse_complex,
     for (i in seq_along(critical)) {
       crit = critical[i]
       # Use C++ version
-      coords = get_simplex_center_fastest(crit, vertices_matrix)
+      coords = get_simplexCENTER(crit, vertices_matrix)
       if (!any(is.na(coords))) {
         parts = strsplit(crit, " ", fixed = TRUE)[[1]]
         simplex_type = if (length(parts) == 1) "vertex" else 
