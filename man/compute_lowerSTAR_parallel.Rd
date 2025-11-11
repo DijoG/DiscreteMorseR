@@ -28,8 +28,6 @@ compute_lowerSTAR_parallel(
 }
 \value{
 Combined lower star results
-
-Combined lower star results
 }
 \description{
 Compute lower star in parallel

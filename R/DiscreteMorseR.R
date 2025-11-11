@@ -13,14 +13,14 @@ NULL
 #' @param k Number of decimal places
 #' @return Formatted character vector
 #' @keywords internal
-add_DECIMAL <- function(x, k) format(round(x, k), nsmall = k)
+add_DECIMAL = function(x, k) format(round(x, k), nsmall = k)
 
 #' Compute lexicographically sorted simplex labels
 #'
 #' @param df Data frame with label and idlabel columns
 #' @return Data table with lexicographically sorted labels
 #' @keywords internal
-get_lexIDLAB <- function(df) {
+get_lexIDLAB = function(df) {
   # Trim labels
   LA = stringr::str_trim(df$label, "both")
   IDLA = stringr::str_trim(df$idlabel, "both")
@@ -48,7 +48,7 @@ get_lexIDLAB <- function(df) {
 #' @param txt_dirout Directory for output files (optional)
 #' @return List of processed simplices
 #' @keywords internal
-get_SIMPLICES <- function(mesh, txt_dirout = "") {
+get_SIMPLICES = function(mesh, txt_dirout = "") {
   
   # Vertices (0-simplex)
   mesh_ver = mesh$vertices %>%
@@ -135,7 +135,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
 #' @param faces Face data from alphahull
 #' @return Mesh data expected by compute_morse_complex()
 #' @export
-get_MESH <- function(vertices, faces) {
+get_MESH = function(vertices, faces) {
   
   vertices = as.matrix(vertices)
   faces = as.matrix(faces)
@@ -172,7 +172,7 @@ get_MESH <- function(vertices, faces) {
 #' @param cores Number of cores (for consistency)
 #' @return List of lower star sets
 #' @keywords internal
-get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
+get_lowerSTAR = function(vertex, edge, face, dirout = NULL, cores = 1) {
   
   # Pre-compute connections
   all_connections = get_vertTO_cpp(vertex, edge, face)
@@ -244,7 +244,7 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
 #' @param vertex Vertex data
 #' @return List with vector field and critical simplices
 #' @keywords internal
-proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
+proc_lowerSTAR = function(list_lowerSTAR, vertex) {
   
   VE_ = c()
   CR_ = c()
@@ -304,44 +304,73 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
 #' @param face Face data
 #' @param output_dir Output directory
 #' @param cores Number of cores (default: available cores-1)
-#' @param batch_size Number of vertices per batch (default minimum: 5000, allowed maximum: 20000)
-#' @return Combined lower star results
-#' @export
-#' Compute lower star in parallel 
-#'
-#' @param vertex Vertex data
-#' @param edge Edge data
-#' @param face Face data
-#' @param output_dir Output directory
-#' @param cores Number of cores (default: available cores-1)
 #' @param batch_size Number of vertices per batch
 #' @return Combined lower star results
 #' @export
-compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
+compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL, 
                                        cores = NULL, batch_size = NULL) {
   
   if (!requireNamespace("clustermq", quietly = TRUE)) {
     stop("Package 'clustermq' required. Install with: install.packages('clustermq')")
   }
   
+  # Validate inputs
+  if (is.null(vertex) || nrow(vertex) == 0) {
+    stop("Vertex data is empty or NULL")
+  }
+  if (is.null(edge) || nrow(edge) == 0) {
+    stop("Edge data is empty or NULL")
+  }
+  if (is.null(face) || nrow(face) == 0) {
+    stop("Face data is empty or NULL")
+  }
+  
+  # Save original options to restore later
+  original_scheduler = getOption("clustermq.scheduler")
+  original_timeout = getOption("clustermq.worker.timeout")
+  
+  # Set appropriate scheduler with cleanup
+  on.exit({
+    options(clustermq.scheduler = original_scheduler)
+    options(clustermq.worker.timeout = original_timeout)
+  })
+  
+  if (.Platform$OS.type == "windows") {
+    options(clustermq.scheduler = "multiprocess")
+    message("🔧 Windows: Using 'multiprocess' scheduler")
+  } else {
+    options(clustermq.scheduler = "multicore")
+    if (Sys.info()["sysname"] == "Darwin") {
+      message("🔧 macOS: Using 'multicore' scheduler")
+    } else {
+      message("🔧 Linux/Unix: Using 'multicore' scheduler")
+    }
+  }
+  
+  # Set reasonable timeout
+  options(clustermq.worker.timeout = 600)  # 10 minutes
+  
   if (is.null(cores)) {
     cores = min(parallel::detectCores() - 1, 20)
+  } else {
+    cores = min(cores, parallel::detectCores(), 20) # Do not exceed available cores
   }
   
   n_vertex = nrow(vertex)
   
-  # Optimal batch sizing
+  # Optimal batch sizing with validation
   if (is.null(batch_size)) {
     batch_size = optimal_batch_size(n_vertex, cores)
   }
+  batch_size = max(1, min(batch_size, n_vertex)) # Ensure valid batch size
   
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   total_batches = length(batches)
   
-  message("🚀 ROCKET-OPTIMIZED clustermq: ", n_vertex, " vertices, ", 
+  message("🚀 PARALLEL clustermq: ", n_vertex, " vertices, ", 
           total_batches, " batches, ", cores, " cores")
   
-  # Two C++ calls for all precomputation
+  # Pre-compute connections - let C++ errors propagate naturally
   message("1. Pre-computing vertex connections...")
   all_connections = get_vertTO_cpp(vertex, edge, face)
   
@@ -351,12 +380,12 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
     all_connections$lexi_label
   )
   
-  # Extract the precomputed data
   vertex_to_simplices = precomputed_data$vertex_index
   first_verts_z = precomputed_data$first_verts_z
   
+  # Clean worker function - no unnecessary try-catch
   worker_function = function(batch_indices, vertex_i123, vertex_Z, 
-                             connections, vertex_index, first_z, output_path) {
+                              connections, vertex_index, first_z, output_path) {
     
     batch_results = list()
     
@@ -411,13 +440,19 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   output_path = if (!is.null(output_dir)) file.path(output_dir, "lowerSTAR.txt")
   
   # Initialize output file
-  if (!is.null(output_path) && file.exists(output_path)) {
-    file.remove(output_path)
+  if (!is.null(output_path)) {
+    if (file.exists(output_path)) {
+      file.remove(output_path)
+    }
+    # Create directory if it doesn't exist
+    dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
   }
   
-  # Run with clustermq
-  message("4. Starting optimized parallel processing...")
+  # Diagnostic message
+  message("3. Starting parallel workers with scheduler: '", 
+          getOption("clustermq.scheduler"), "'")
   
+  # Run with clustermq - let errors propagate naturally
   results = clustermq::Q(
     fun = worker_function,
     batch_indices = batches,
@@ -429,7 +464,7 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
       first_z = first_verts_z,
       output_path = output_path
     ),
-    n_jobs = cores,
+    n_jobs = min(cores, total_batches), # Don't create more jobs than batches
     template = list(),
     export = list(gtools = "gtools"),
     chunk_size = 1
@@ -439,14 +474,20 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   final_results = unlist(results, recursive = FALSE)
   final_results = final_results[!sapply(final_results, is.null)]
   
-  message("✅ OPTIMIZED parallel complete: ", length(final_results), 
-          " lower star sets (", round(length(final_results) / n_vertex * 100, 1), "%)")
+  # Calculate success rate
+  success_rate = round(length(final_results) / n_vertex * 100, 1)
+  message("✅ PARALLEL complete: ", length(final_results), 
+          " lower star sets (", success_rate, "%)")
+  
+  if (success_rate < 90) {
+    warning("Low success rate (", success_rate, "%). Some vertices may not have been processed correctly.")
+  }
   
   return(final_results)
 }
 
 #' @keywords internal
-optimal_batch_size <- function(n_vertex, cores) {
+optimal_batch_size = function(n_vertex, cores) {
   if (n_vertex > 200000) return(10000)
   if (n_vertex > 100000) return(5000)
   return(2000)
@@ -465,7 +506,7 @@ optimal_batch_size <- function(n_vertex, cores) {
 #' @param batch_size Number of vertices per batch in parallel processing
 #' @return List with Morse vector field and critical simplices
 #' @export
-compute_morse_complex <- function(mesh, output_dir = NULL, parallel = TRUE, 
+compute_morse_complex = function(mesh, output_dir = NULL, parallel = TRUE, 
                                   cores = 4, batch_size = NULL) {
   
   message("Step 1: Computing simplices")
@@ -525,7 +566,7 @@ compute_morse_complex <- function(mesh, output_dir = NULL, parallel = TRUE,
 #' @param vertices Vertex coordinates
 #' @return Numeric vector of coordinates
 #' @keywords internal
-get_simplex_center <- function(simplex, vertices) {
+get_simplex_center = function(simplex, vertices) {
   vert_ids = as.numeric(strsplit(simplex, " ")[[1]])
   vert_coords = vertices[vertices$i123 %in% vert_ids, c("X", "Y", "Z")]
   
@@ -546,7 +587,7 @@ get_simplex_center <- function(simplex, vertices) {
 #' @param length_scale Scale factor for arrow length
 #' @param alpha Arrow transparency
 #' @keywords internal
-plot_gradient_field <- function(vector_field, vertices, color, length_scale, alpha) {
+plot_gradient_field = function(vector_field, vertices, color, length_scale, alpha) {
   
   for (pair in vector_field) {
     parts = strsplit(pair, ":")[[1]]
@@ -575,7 +616,7 @@ plot_gradient_field <- function(vector_field, vertices, color, length_scale, alp
 #' @param colors Colors for different simplex types
 #' @param size Point size
 #' @keywords internal
-plot_critical_points <- function(critical, vertices, colors, size) {
+plot_critical_points = function(critical, vertices, colors, size) {
   
   for (crit in critical) {
     parts = strsplit(crit, " ")[[1]]
@@ -637,7 +678,7 @@ plot_critical_points <- function(critical, vertices, colors, size) {
 #' @param alpha Transparency for mesh and arrows (default: 0.3)
 #' @return rgl scene
 #' @export
-visualize_morse_gradient <- function(mesh, morse_complex, vertex_coords = NULL,
+visualize_morse_gradient = function(mesh, morse_complex, vertex_coords = NULL,
                                      gradient_color = "pink", 
                                      critical_colors = c("firebrick2", "darkslategray1", "forestgreen"),
                                      arrow_length = 1, point_size = 8, alpha = 0.3) {
@@ -691,7 +732,7 @@ visualize_morse_gradient <- function(mesh, morse_complex, vertex_coords = NULL,
 #' @param output_file Optional file to save screenshot
 #' @return Multi-panel rgl visualization
 #' @export
-visualize_morse_summary <- function(mesh, morse_complex, output_file = NULL) {
+visualize_morse_summary = function(mesh, morse_complex, output_file = NULL) {
   
   if (!requireNamespace("rgl", quietly = TRUE)) {
     stop("Package 'rgl' required for visualization")
