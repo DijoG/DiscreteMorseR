@@ -2,7 +2,7 @@
 % Please edit documentation in R/DiscreteMorseR.R
 \name{compute_lowerSTAR_parallel}
 \alias{compute_lowerSTAR_parallel}
-\title{Compute lower star in parallel (with progress)}
+\title{Compute lower star in parallel}
 \usage{
 compute_lowerSTAR_parallel(
   vertex,
@@ -10,7 +10,7 @@ compute_lowerSTAR_parallel(
   face,
   output_dir = NULL,
   cores = NULL,
-  batch_size = 1000
+  batch_size = 5000
 )
 }
 \arguments{
@@ -24,11 +24,11 @@ compute_lowerSTAR_parallel(
 
 \item{cores}{Number of cores (default: available cores-1)}
 
-\item{batch_size}{Number of vertices per batch}
+\item{batch_size}{Number of vertices per batch (default minimum: 5000, allowed maximum: 20000)}
 }
 \value{
 Combined lower star results
 }
 \description{
-Compute lower star in parallel (with progress)
+Compute lower star in parallel
 }

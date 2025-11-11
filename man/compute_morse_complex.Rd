@@ -4,16 +4,28 @@
 \alias{compute_morse_complex}
 \title{Compute Morse complex from mesh}
 \usage{
-compute_morse_complex(mesh, output_dir = NULL, parallel = TRUE, cores = 4)
+compute_morse_complex(
+  mesh,
+  output_dir = NULL,
+  parallel = TRUE,
+  cores = 4,
+  batch_size = NULL
+)
 }
 \arguments{
 \item{mesh}{Mesh object from MeshesOperations}
 
-\item{output_dir}{Optional directory to save results}
+\item{output_dir}{Optional directory to save results. If provided, writes:
+- vertices.txt, edges.txt, faces.txt: Mesh simplices
+- vector_field.txt: Gradient vector field pairs  
+- critical_simplices.txt: Critical simplices
+- lowerSTAR.txt: Lower star filtration data}
 
 \item{parallel}{Whether to use parallel processing (default: TRUE)}
 
 \item{cores}{Number of cores for parallel processing (default: 4)}
+
+\item{batch_size}{Number of vertices per batch in parallel processing}
 }
 \value{
 List with Morse vector field and critical simplices

@@ -60,7 +60,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
     dplyr::mutate(Z = as.character(Z))
   
   if (txt_dirout != "") {
-    readr::write_tsv(mesh_ver, stringr::str_c(txt_dirout, "/trees_mesh_ver.txt"))
+    readr::write_tsv(mesh_ver, stringr::str_c(txt_dirout, "/vertices.txt"))
   }
   
   # Edges (1-simplex)
@@ -88,7 +88,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
   mesh_edge_final = cbind(mesh_edge, out)
   
   if (txt_dirout != "") {
-    readr::write_tsv(mesh_edge_final, stringr::str_c(txt_dirout, "/trees_mesh_edge.txt"))
+    readr::write_tsv(mesh_edge_final, stringr::str_c(txt_dirout, "/edges.txt"))
   }
   
   # Faces (2-simplex)
@@ -122,7 +122,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
   mesh_face_final = cbind(mesh_face, out)
   
   if (txt_dirout != "") {
-    readr::write_tsv(mesh_face_final, stringr::str_c(txt_dirout, "/trees_mesh_face.txt"))
+    readr::write_tsv(mesh_face_final, stringr::str_c(txt_dirout, "/faces.txt"))
   }
   
   return(list(
@@ -143,31 +143,68 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
 #' @keywords internal
 get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
   
-  lowerSTAR = list()
+  # Pre-compute connections
+  all_connections = get_vertTO_cpp(vertex, edge, face)
+  lexi_labels = all_connections$lexi_label
+  lexi_ids = all_connections$lexi_id
+  
+  # Pre-compute everything upfront
+  first_verts = sapply(strsplit(lexi_labels, " "), function(x) as.numeric(x[1]))
+  simplex_vertices = strsplit(lexi_ids, " ")
+  
+  # Build reverse index: vertex_id -> simplex_indices
+  vertex_to_simplices = list()
+  for (i in seq_along(simplex_vertices)) {
+    for (v_id in simplex_vertices[[i]]) {
+      if (is.null(vertex_to_simplices[[v_id]])) {
+        vertex_to_simplices[[v_id]] = integer(0)
+      }
+      vertex_to_simplices[[v_id]] = c(vertex_to_simplices[[v_id]], i)
+    }
+  }
+  
+  lowerSTAR = vector("list", nrow(vertex))
+  
   for (i in 1:nrow(vertex)) {
-    vertTO = get_vertTO_cpp(vertex[i,], edge, face) %>%
-      data.table::data.table() 
+    v_id = as.character(vertex$i123[i])
+    v_z = as.numeric(vertex$Z[i])
     
-    if (nrow(vertTO) > 0) {
-      vertTO = vertTO %>% 
-        dplyr::arrange(order(gtools::mixedorder(lexi_label, decreasing = FALSE)))
+    simplex_indices = vertex_to_simplices[[v_id]]
+    
+    if (!is.null(simplex_indices) && length(simplex_indices) > 0) {
+      valid_indices = simplex_indices[first_verts[simplex_indices] <= v_z]
       
-      tf = purrr::map(vertTO$lexi_label, ~ stringr::str_split_1(., " ")[1] %>% as.double) <= as.double(vertex[i,]$Z)
-      
-      lowerSTAR[[i]] = vertTO[tf,] %>% 
-        dplyr::mutate(id = vertex$i123[i], .before = 1)
-      
-      if (!is.null(dirout)) {
-        data.table::fwrite(lowerSTAR[[i]], 
-                           file = stringr::str_c(dirout, "/lowerSTAR.txt"),
-                           sep = "\t", append = TRUE, col.names = FALSE)
+      if (length(valid_indices) > 0) {
+        valid_simplices = all_connections[valid_indices, ]
+        
+        order_idx = gtools::mixedorder(valid_simplices$lexi_label, decreasing = FALSE)
+        sorted_simplices = valid_simplices[order_idx, ]
+        
+        # Create data.frame WITHOUT factors
+        result = data.frame(
+          id = rep(as.integer(v_id), nrow(sorted_simplices)),
+          lexi_label = sorted_simplices$lexi_label,
+          lexi_id = sorted_simplices$lexi_id,
+          stringsAsFactors = FALSE
+        )
+        
+        lowerSTAR[[i]] = result
+        
+        if (!is.null(dirout)) {
+          output_lines = apply(result, 1, function(row) {
+            paste(row, collapse = "\t")
+          })
+          
+          # Append to file with cat() for exact format matching
+          cat(output_lines, file = file.path(dirout, "lowerSTAR.txt"), 
+              sep = "\n", append = TRUE)
+        }
       }
     }
   }
   
-  if (is.null(dirout)) {
-    return(lowerSTAR)
-  }
+  lowerSTAR = lowerSTAR[!sapply(lowerSTAR, is.null)]
+  return(lowerSTAR)
 }
 
 #' Process lower star to get Morse pairings
@@ -229,56 +266,55 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
               CR_ = CR_ %>% na.omit() %>% unique() %>% gtools::mixedsort()))
 }
 
-#' Compute lower star in parallel (with progress)
+#' Compute lower star in parallel 
 #'
 #' @param vertex Vertex data
 #' @param edge Edge data
 #' @param face Face data
 #' @param output_dir Output directory
 #' @param cores Number of cores (default: available cores-1)
-#' @param batch_size Number of vertices per batch
+#' @param batch_size Number of vertices per batch (default minimum: 5000, allowed maximum: 20000)
 #' @return Combined lower star results
 #' @export
 compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
-                                       cores = NULL, batch_size = 1000) {
+                                       cores = NULL, batch_size = 5000) {
   
   if (!requireNamespace("furrr", quietly = TRUE)) {
     stop("Package 'furrr' required for parallel processing")
   }
   
-  # Auto-detect cores if not specified
   if (is.null(cores)) {
     cores = parallel::detectCores() - 1
   }
   
   n_vertex = nrow(vertex)
   
-  # Calculate batches
+  # Batch sizing
   if (is.null(batch_size)) {
-    batch_size = ceiling(n_vertex / (cores * 3))
-    batch_size = max(batch_size, 1000)
-    batch_size = min(batch_size, 50000)
+    batch_size = ceiling(n_vertex / cores)
+    batch_size = max(batch_size, 5000)  # Min batch/vertex size
+    batch_size = min(batch_size, 20000) # Max batch/vertex size
   }
   
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   total_batches = length(batches)
   
-  message("=== Parallel Lower Star Computation ===")
-  message("Vertices: ", n_vertex)
-  message("Batches: ", total_batches) 
-  message("Cores: ", cores)
-  message("Batch size: ~", round(n_vertex / total_batches), " vertices")
-  message("=======================================")
+  message("🚀 Rocket-fast parallel: ", n_vertex, " vertices, ", 
+          total_batches, " batches, ", cores, " cores")
   
   # Set up parallel processing
   future::plan(future::multisession, workers = cores)
   
-  # Simple batch processor
+  # Use the optimized function
   process_batch = function(batch_indices, batch_num) {
+    message("Batch ", batch_num, "/", total_batches, " (vertices ", 
+            min(batch_indices), "-", max(batch_indices), ")")
+    
     batch_vertex = vertex[batch_indices, ]
     result = get_lowerSTAR(batch_vertex, edge, face, output_dir, cores = 1)
     
-    message("Batch ", batch_num, "/", total_batches, " complete")
+    message("✅ Batch ", batch_num, "/", total_batches, " complete - ", 
+            length(result), " lower star sets")
     
     return(result)
   }
@@ -288,16 +324,15 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
     list(indices = batches[[i]], number = i)
   })
   
-  # Process with progress
+  # Process batches in parallel
   results = furrr::future_map(batch_list, function(batch) {
     process_batch(batch$indices, batch$number)
-  }, .options = furrr::furrr_options(seed = TRUE), .progress = TRUE)
+  }, .options = furrr::furrr_options(seed = TRUE))
   
   # Combine results
   final_results = unlist(results, recursive = FALSE)
   
-  message("=======================================")
-  message("✅ Complete: ", length(final_results), " lower star sets found")
+  message("🎉 Parallel computation complete: ", length(final_results), " total lower star sets")
   
   return(final_results)
 }
@@ -305,14 +340,18 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
 #' Compute Morse complex from mesh
 #'
 #' @param mesh Mesh object from MeshesOperations
-#' @param output_dir Optional directory to save results
+#' @param output_dir Optional directory to save results. If provided, writes:
+#'   - vertices.txt, edges.txt, faces.txt: Mesh simplices
+#'   - vector_field.txt: Gradient vector field pairs  
+#'   - critical_simplices.txt: Critical simplices
+#'   - lowerSTAR.txt: Lower star filtration data
 #' @param parallel Whether to use parallel processing (default: TRUE)
 #' @param cores Number of cores for parallel processing (default: 4)
+#' @param batch_size Number of vertices per batch in parallel processing
 #' @return List with Morse vector field and critical simplices
 #' @export
-compute_morse_complex <- function(mesh, output_dir = NULL, 
-                                  parallel = TRUE, 
-                                  cores = 4) {
+compute_morse_complex <- function(mesh, output_dir = NULL, parallel = TRUE, 
+                                  cores = 4, batch_size = NULL) {
   
   message("Step 1: Computing simplices")
   simplices = get_SIMPLICES(mesh, output_dir)
@@ -321,7 +360,7 @@ compute_morse_complex <- function(mesh, output_dir = NULL,
   if (parallel) {
     lower_star = compute_lowerSTAR_parallel(
       simplices$vertices, simplices$edges, simplices$faces, 
-      output_dir, cores = cores
+      output_dir, cores = cores, batch_size = batch_size
     )
   } else {
     lower_star = get_lowerSTAR(simplices$vertices, simplices$edges, simplices$faces, output_dir)
@@ -329,6 +368,33 @@ compute_morse_complex <- function(mesh, output_dir = NULL,
   
   message("Step 3: Processing Morse pairings")
   morse_complex = proc_lowerSTAR(lower_star, simplices$vertices)
+  
+  # Write final results to files if output_dir provided
+  if (!is.null(output_dir)) {
+    message("Step 4: Writing final results to files")
+    
+    # Write vector field (one pair per line)
+    writeLines(morse_complex$VE_, file.path(output_dir, "vector_field.txt"))
+    
+    # Write critical simplices (one simplex per line)
+    writeLines(morse_complex$CR_, file.path(output_dir, "critical_simplices.txt"))
+    
+    # Write simplices as tab-separated text files (no row limits)
+    write.table(simplices$vertices, file.path(output_dir, "vertices.txt"), 
+                sep = "\t", row.names = FALSE, quote = FALSE)
+    write.table(simplices$edges, file.path(output_dir, "edges.txt"), 
+                sep = "\t", row.names = FALSE, quote = FALSE)
+    write.table(simplices$faces, file.path(output_dir, "faces.txt"), 
+                sep = "\t", row.names = FALSE, quote = FALSE)
+    
+    message("Final results written to:")
+    message("  - ", file.path(output_dir, "vector_field.txt"))
+    message("  - ", file.path(output_dir, "critical_simplices.txt"))
+    message("  - ", file.path(output_dir, "vertices.txt"))
+    message("  - ", file.path(output_dir, "edges.txt")) 
+    message("  - ", file.path(output_dir, "faces.txt"))
+    message("  - ", file.path(output_dir, "lowerSTAR.txt"))
+  }
   
   message("Discrete Morse Theory analysis complete!")
   return(list(
@@ -461,12 +527,12 @@ visualize_morse_gradient <- function(mesh, morse_complex, vertex_coords = NULL,
                                      critical_colors = c("firebrick2", "darkslategray1", "forestgreen"),
                                      arrow_length = 1, point_size = 8, alpha = 0.3) {
   
-  if (!requireNamespace("rgl", quietly = TRUE)) {
-    stop("Package 'rgl' required for visualization. Install with: install.packages('rgl')")
-  }
+  required_packages = c("rgl", "MeshesOperations")
+  missing_packages = required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
   
-  if (!requireNamespace("MeshesOperations", quietly = TRUE)) {
-    stop("Package 'MeshesOperations' required for mesh conversion")
+  if (length(missing_packages) > 0) {
+    stop("Required packages missing: ", paste(missing_packages, collapse = ", "), 
+         ". Install with: install.packages(c('", paste(missing_packages, collapse = "', '"), "'))")
   }
   
   vertices = morse_complex$simplices$vertices
