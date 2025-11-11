@@ -7,7 +7,7 @@
 save_morse_2d(morse_complex, filename, width = 10, height = 8, dpi = 300, ...)
 }
 \arguments{
-\item{morse_complex}{Output from compute_morse_complex()}
+\item{morse_complex}{Output from compute_MORSE_complex()}
 
 \item{filename}{Output file name}
 
@@ -17,7 +17,7 @@ save_morse_2d(morse_complex, filename, width = 10, height = 8, dpi = 300, ...)
 
 \item{dpi}{Resolution}
 
-\item{...}{Additional arguments to visualize_morse_2d()}
+\item{...}{Additional arguments to visualize_MORSE_2d()}
 }
 \description{
 Save 2D visualization to file

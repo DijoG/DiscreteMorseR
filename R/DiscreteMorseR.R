@@ -305,7 +305,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   
   # Optimal batch sizing with validation
   if (is.null(batch_size)) {
-    batch_size = optimal_batch_size(n_vertex, cores)
+    batch_size = optimal_BATCH_size(n_vertex, cores)
   }
   batch_size = max(1, min(batch_size, n_vertex)) # Ensure valid batch size
   
@@ -444,7 +444,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
 }
 
 #' @keywords internal
-optimal_batch_size = function(n_vertex, cores) {
+optimal_BATCH_size = function(n_vertex, cores) {
   if (n_vertex > 200000) return(10000)
   if (n_vertex > 100000) return(5000)
   return(2000)
@@ -463,7 +463,7 @@ optimal_batch_size = function(n_vertex, cores) {
 #' @param batch_size Number of vertices per batch in parallel processing
 #' @return List with Morse vector field and critical simplices
 #' @export
-compute_morse_complex = function(mesh, output_dir = NULL, parallel = TRUE, 
+compute_MORSE_complex = function(mesh, output_dir = NULL, parallel = TRUE, 
                                   cores = 4, batch_size = NULL) {
   
   message("Step 1: Computing simplices")
@@ -526,7 +526,6 @@ compute_morse_complex = function(mesh, output_dir = NULL, parallel = TRUE,
 get_simplexCENTER <- function(simplex, vertices_matrix) {
   get_simplexCENTER_cpp(simplex, vertices_matrix)
 }
-
 #' Fast Morse complex visualization using get_simplexCENTER()
 #'
 #' @param morse_complex Output from compute_morse_complex()
@@ -538,13 +537,13 @@ get_simplexCENTER <- function(simplex, vertices_matrix) {
 #' @param max_points Maximum points to plot per category (default: 50000)
 #' @return ggplot2 object
 #' @export
-visualize_morse_2d <- function(morse_complex, 
-                               projection = "XY",
+visualize_MORSE_2d <- function(morse_complex, 
+                               projection = "XZ",
                                point_alpha = 0.6,
                                point_size = 1,
                                plot_gradient = TRUE,
                                plot_critical = TRUE,
-                               max_points = 50000) {
+                               max_points = 30000) {
   
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
@@ -561,15 +560,33 @@ visualize_morse_2d <- function(morse_complex,
     Z = as.numeric(vertices$Z)  
   ))
   
-  # Pre-sample if needed
+  # Separate critical points by type for proper layering
+  crit_types <- sapply(strsplit(critical, " "), length)
+  crit_vertices = critical[crit_types == 1]
+  crit_edges = critical[crit_types == 2] 
+  crit_faces = critical[crit_types == 3]
+  
+  # Apply sampling per type to maintain proportions
+  if (plot_critical) {
+    if (length(crit_edges) > max_points) {
+      crit_edges = sample(crit_edges, max_points)
+      message("Sampled ", max_points, " critical edges")
+    }
+    if (length(crit_faces) > max_points) {
+      crit_faces = sample(crit_faces, max_points)
+      message("Sampled ", max_points, " critical faces")
+    }
+    # Always show all vertices (they're the most important)
+    if (length(crit_vertices) > max_points) {
+      crit_vertices = sample(crit_vertices, max_points)
+      message("Sampled ", max_points, " critical vertices")
+    }
+  }
+  
+  # Pre-sample gradient arrows if needed
   if (plot_gradient && length(vector_field) > max_points) {
     vector_field = sample(vector_field, max_points)
     message("Sampled ", max_points, " gradient arrows")
-  }
-  
-  if (plot_critical && length(critical) > max_points) {
-    critical = sample(critical, max_points)
-    message("Sampled ", max_points, " critical points")
   }
   
   plot_data = list()
@@ -617,54 +634,118 @@ visualize_morse_2d <- function(morse_complex,
     message("Valid gradient arrows: ", valid_count, "/", length(vector_field))
   }
   
-  # Ultra-fast critical points processing with C++
-  if (plot_critical && length(critical) > 0) {
-    critical_list = vector("list", length(critical))
-    valid_count = 0
-    
-    for (i in seq_along(critical)) {
-      crit = critical[i]
-      # Use C++ version
-      coords = get_simplexCENTER(crit, vertices_matrix)
-      if (!any(is.na(coords))) {
-        parts = strsplit(crit, " ", fixed = TRUE)[[1]]
-        simplex_type = if (length(parts) == 1) "vertex" else 
-          if (length(parts) == 2) "edge" else "face"
-        
-        if (projection == "XY") {
-          x_coord = coords[1]; y_coord = coords[2]
-        } else if (projection == "XZ") {
-          x_coord = coords[1]; y_coord = coords[3]
-        } else {
-          x_coord = coords[2]; y_coord = coords[3]
-        }
-        
-        if (!any(is.na(c(x_coord, y_coord)))) {
-          critical_list[[valid_count + 1]] = data.frame(
-            x = x_coord, y = y_coord, 
-            type = simplex_type
-          )
-          valid_count = valid_count + 1
+  # Process critical points by type for proper layering
+  if (plot_critical) {
+    # Process edges first (bottom layer)
+    if (length(crit_edges) > 0) {
+      edge_list = vector("list", length(crit_edges))
+      valid_count = 0
+      
+      for (i in seq_along(crit_edges)) {
+        crit = crit_edges[i]
+        coords = get_simplexCENTER(crit, vertices_matrix)
+        if (!any(is.na(coords))) {
+          if (projection == "XY") {
+            x_coord = coords[1]; y_coord = coords[2]
+          } else if (projection == "XZ") {
+            x_coord = coords[1]; y_coord = coords[3]
+          } else {
+            x_coord = coords[2]; y_coord = coords[3]
+          }
+          
+          if (!any(is.na(c(x_coord, y_coord)))) {
+            edge_list[[valid_count + 1]] = data.frame(
+              x = x_coord, y = y_coord, 
+              type = "edge"
+            )
+            valid_count = valid_count + 1
+          }
         }
       }
+      
+      if (valid_count > 0) {
+        plot_data$edges = do.call(rbind, edge_list[1:valid_count])
+      }
+      message("Valid critical edges: ", valid_count, "/", length(crit_edges))
     }
     
-    if (valid_count > 0) {
-      plot_data$critical = do.call(rbind, critical_list[1:valid_count])
+    # Process faces second (middle layer)
+    if (length(crit_faces) > 0) {
+      face_list = vector("list", length(crit_faces))
+      valid_count = 0
+      
+      for (i in seq_along(crit_faces)) {
+        crit = crit_faces[i]
+        coords = get_simplexCENTER(crit, vertices_matrix)
+        if (!any(is.na(coords))) {
+          if (projection == "XY") {
+            x_coord = coords[1]; y_coord = coords[2]
+          } else if (projection == "XZ") {
+            x_coord = coords[1]; y_coord = coords[3]
+          } else {
+            x_coord = coords[2]; y_coord = coords[3]
+          }
+          
+          if (!any(is.na(c(x_coord, y_coord)))) {
+            face_list[[valid_count + 1]] = data.frame(
+              x = x_coord, y = y_coord, 
+              type = "face"
+            )
+            valid_count = valid_count + 1
+          }
+        }
+      }
+      
+      if (valid_count > 0) {
+        plot_data$faces = do.call(rbind, face_list[1:valid_count])
+      }
+      message("Valid critical faces: ", valid_count, "/", length(crit_faces))
     }
-    message("Valid critical points: ", valid_count, "/", length(critical))
+    
+    # Process vertices last (top layer)
+    if (length(crit_vertices) > 0) {
+      vertex_list = vector("list", length(crit_vertices))
+      valid_count = 0
+      
+      for (i in seq_along(crit_vertices)) {
+        crit = crit_vertices[i]
+        coords = get_simplexCENTER(crit, vertices_matrix)
+        if (!any(is.na(coords))) {
+          if (projection == "XY") {
+            x_coord = coords[1]; y_coord = coords[2]
+          } else if (projection == "XZ") {
+            x_coord = coords[1]; y_coord = coords[3]
+          } else {
+            x_coord = coords[2]; y_coord = coords[3]
+          }
+          
+          if (!any(is.na(c(x_coord, y_coord)))) {
+            vertex_list[[valid_count + 1]] = data.frame(
+              x = x_coord, y = y_coord, 
+              type = "vertex"
+            )
+            valid_count = valid_count + 1
+          }
+        }
+      }
+      
+      if (valid_count > 0) {
+        plot_data$vertices = do.call(rbind, vertex_list[1:valid_count])
+      }
+      message("Valid critical vertices: ", valid_count, "/", length(crit_vertices))
+    }
   }
   
-  # Create the plot
+  # Create the plot with proper layering
   p = ggplot2::ggplot() +
     ggplot2::theme_minimal() +
     ggplot2::labs(
-      title = paste("Morse Complex -", projection),
+      title = paste("Morse Complex -", projection, "Projection"),
       x = ifelse(projection == "XY", "X", ifelse(projection == "XZ", "X", "Y")),
       y = ifelse(projection == "XY", "Y", ifelse(projection == "XZ", "Z", "Z"))
     )
   
-  # Add gradient arrows
+  # Add gradient arrows first (bottom layer)
   if (!is.null(plot_data$gradient) && nrow(plot_data$gradient) > 0) {
     p = p + ggplot2::geom_segment(
       data = plot_data$gradient,
@@ -675,35 +756,60 @@ visualize_morse_2d <- function(morse_complex,
     )
   }
   
-  # Add critical points
-  if (!is.null(plot_data$critical) && nrow(plot_data$critical) > 0) {
+  # Add critical points in reverse order (vertices on top)
+  if (!is.null(plot_data$edges) && nrow(plot_data$edges) > 0) {
     p = p + ggplot2::geom_point(
-      data = plot_data$critical,
+      data = plot_data$edges,
       ggplot2::aes(x = x, y = y, color = type),
       alpha = point_alpha, size = point_size
-    ) +
-      ggplot2::scale_color_manual(
-        values = c(vertex = "firebrick2", edge = "steelblue2", face = "forestgreen"),
-        name = "Critical"
-      ) 
+    )
   }
   
-  message("Ultra-fast 2D visualization complete!")
+  if (!is.null(plot_data$faces) && nrow(plot_data$faces) > 0) {
+    p = p + ggplot2::geom_point(
+      data = plot_data$faces,
+      ggplot2::aes(x = x, y = y, color = type),
+      alpha = point_alpha, size = point_size
+    )
+  }
+  
+  if (!is.null(plot_data$vertices) && nrow(plot_data$vertices) > 0) {
+    p = p + ggplot2::geom_point(
+      data = plot_data$vertices,
+      ggplot2::aes(x = x, y = y, color = type),
+      alpha = point_alpha, size = point_size * 1.5,  # Larger for emphasis
+      shape = 16  # Solid circle
+    )
+  }
+  
+  # Color scale
+  p = p + ggplot2::scale_color_manual(
+    values = c(
+      vertex = "firebrick2", 
+      edge = "steelblue2", 
+      face = "forestgreen"
+    ),
+    name = "Critical Simplices",
+    breaks = c("vertex", "edge", "face"),
+    labels = c("Vertices", "Edges", "Faces")
+  ) 
+  
+  message("Ultra-fast 2D visualization complete! Critical vertices on top.")
   return(p)
 }
 
 #' Create multiple 2D projection plots
 #'
-#' @param morse_complex Output from compute_morse_complex()
+#' @param morse_complex Output from compute_MORSE_complex()
 #' @param point_alpha Point transparency
 #' @param point_size Point size  
 #' @param max_points Maximum points per plot
 #' @return List of ggplot2 objects
 #' @export
-visualize_morse_2d_panel <- function(morse_complex,
+visualize_MORSE_2d_panel <- function(morse_complex,
                                      point_alpha = 0.6,
                                      point_size = 1,
-                                     max_points = 50000) {
+                                     max_points = 30000) {
   
   if (!requireNamespace("patchwork", quietly = TRUE)) {
     stop("Package 'patchwork' required for panel plots. Install with: install.packages('patchwork')")
@@ -732,12 +838,12 @@ visualize_morse_2d_panel <- function(morse_complex,
 
 #' Save 2D visualization to file
 #'
-#' @param morse_complex Output from compute_morse_complex() 
+#' @param morse_complex Output from compute_MORSE_complex() 
 #' @param filename Output file name
 #' @param width Plot width in inches
 #' @param height Plot height in inches
 #' @param dpi Resolution
-#' @param ... Additional arguments to visualize_morse_2d()
+#' @param ... Additional arguments to visualize_MORSE_2d()
 #' @export
 save_morse_2d <- function(morse_complex, filename, 
                           width = 10, height = 8, dpi = 300, ...) {
