@@ -151,14 +151,14 @@ get_MESH = function(vertices, faces) {
   mesh = list(
     vertices = as.matrix(result$vertices),
     faces = as.matrix(result$faces),
-    edgesDF = as.data.frame(result$edgesDF)
+    edges = as.data.frame(result$edges) 
   )
   
   colnames(mesh$vertices) = c("X", "Y", "Z")
   colnames(mesh$faces) = c("i1", "i2", "i3")
   
   message("Minimal mesh: ", nrow(mesh$vertices), " vertices, ",
-          nrow(mesh$faces), " faces, ", nrow(mesh$edgesDF), " edges")
+          nrow(mesh$faces), " faces, ", nrow(mesh$edges), " edges")
   
   return(mesh)
 }

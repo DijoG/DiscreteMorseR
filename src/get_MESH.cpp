@@ -52,6 +52,6 @@ List get_MESH_cpp(NumericMatrix vertices, IntegerMatrix faces) {
   return List::create(
     Named("vertices") = vertices,
     Named("faces") = faces,
-    Named("edgesDF") = edgesDF
+    Named("edges") = edgesDF
   );
 }
