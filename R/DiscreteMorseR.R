@@ -328,7 +328,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   vertex_to_simplices = precomputed_data$vertex_index
   first_verts_z = precomputed_data$first_verts_z
   
-  # CRITICAL FIX: Always returns results!
+  # CRITICAL FIX: Always returns PROPER results (for no data ~ 0-simplex)
   worker_function = function(batch_indices, vertex_i123, vertex_Z, 
                              connections, vertex_index, first_z, output_path) {
     
@@ -375,11 +375,11 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
         }
       }
       
-      # CRITICAL FIX: Always store in memory, even if empty
+      # CRITICAL FIX: Create PROPER empty data frame
       if (is.null(result)) {
-        # Create empty data frame for vertices with empty lower stars
+        # Create properly structured empty data frame
         result = data.frame(
-          id = v_id,
+          id = integer(),
           lexi_label = character(),
           lexi_id = character(),
           stringsAsFactors = FALSE
@@ -390,7 +390,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
     }
     
     return(batch_results)
-  }
+  } 
   
   # Prepare data for workers
   vertex_i123 = vertex$i123
