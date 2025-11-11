@@ -252,7 +252,7 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
 #' @return Combined lower star results
 #' @export
 compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL, 
-                                       cores = NULL, batch_size = NULL) {
+                                      cores = NULL, batch_size = NULL) {
   
   if (!requireNamespace("clustermq", quietly = TRUE)) {
     stop("Package 'clustermq' required. Install with: install.packages('clustermq')")
@@ -327,9 +327,9 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   vertex_to_simplices = precomputed_data$vertex_index
   first_verts_z = precomputed_data$first_verts_z
   
-  # Clean worker function - no unnecessary try-catch
+  # FIXED: Worker function without file writing
   worker_function = function(batch_indices, vertex_i123, vertex_Z, 
-                              connections, vertex_index, first_z, output_path) {
+                             connections, vertex_index, first_z) {
     
     batch_results = list()
     
@@ -363,14 +363,6 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
           )
           
           batch_results[[length(batch_results) + 1]] = result
-          
-          # Efficient file writing
-          if (!is.null(output_path)) {
-            write.table(result, file = output_path,
-                        sep = "\t", append = TRUE, 
-                        col.names = FALSE, row.names = FALSE,
-                        quote = FALSE)
-          }
         }
       }
     }
@@ -381,16 +373,6 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   # Prepare data for workers
   vertex_i123 = vertex$i123
   vertex_Z = vertex$Z
-  output_path = if (!is.null(output_dir)) file.path(output_dir, "lowerSTAR.txt")
-  
-  # Initialize output file
-  if (!is.null(output_path)) {
-    if (file.exists(output_path)) {
-      file.remove(output_path)
-    }
-    # Create directory if it doesn't exist
-    dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
-  }
   
   # Diagnostic message
   message("3. Starting parallel workers with scheduler: '", 
@@ -405,8 +387,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
       vertex_Z = vertex_Z,
       connections = all_connections,
       vertex_index = vertex_to_simplices,
-      first_z = first_verts_z,
-      output_path = output_path
+      first_z = first_verts_z
     ),
     n_jobs = min(cores, total_batches), # Don't create more jobs than batches
     template = list(),
@@ -417,6 +398,36 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   # Combine results
   final_results = unlist(results, recursive = FALSE)
   final_results = final_results[!sapply(final_results, is.null)]
+  
+  # FIXED: Write file ONCE at the end (not in parallel workers)
+  if (!is.null(output_dir)) {
+    output_path = file.path(output_dir, "lowerSTAR.txt")
+    message("4. Writing lowerSTAR.txt file (single-threaded)...")
+    
+    # Create directory if it doesn't exist
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+    
+    # Remove existing file
+    if (file.exists(output_path)) {
+      file.remove(output_path)
+    }
+    
+    # Combine all results and write once
+    if (length(final_results) > 0) {
+      all_lower_star = do.call(rbind, final_results)
+      
+      # Write with proper formatting
+      write.table(all_lower_star, file = output_path,
+                  sep = "\t", col.names = FALSE, row.names = FALSE,
+                  quote = FALSE)
+      
+      message("✅ File written successfully: ", nrow(all_lower_star), " entries")
+    } else {
+      message("⚠️  No lower star data to write")
+      # Create empty file to avoid errors
+      file.create(output_path)
+    }
+  }
   
   # Calculate success rate
   success_rate = round(length(final_results) / n_vertex * 100, 1)
@@ -604,7 +615,7 @@ visualize_morse_2d <- function(morse_complex,
     message("Valid gradient arrows: ", valid_count, "/", length(vector_field))
   }
   
-  # ULTRA-FAST critical points processing with C++
+  # Ultra-fast critical points processing with C++
   if (plot_critical && length(critical) > 0) {
     critical_list = vector("list", length(critical))
     valid_count = 0
@@ -646,7 +657,7 @@ visualize_morse_2d <- function(morse_complex,
   p = ggplot2::ggplot() +
     ggplot2::theme_minimal() +
     ggplot2::labs(
-      title = paste("Morse Complex -", projection, "Projection"),
+      title = paste("Morse Complex -", projection),
       x = ifelse(projection == "XY", "X", ifelse(projection == "XZ", "X", "Y")),
       y = ifelse(projection == "XY", "Y", ifelse(projection == "XZ", "Z", "Z"))
     )
@@ -656,7 +667,7 @@ visualize_morse_2d <- function(morse_complex,
     p = p + ggplot2::geom_segment(
       data = plot_data$gradient,
       ggplot2::aes(x = x_from, y = y_from, xend = x_to, yend = y_to),
-      color = "pink", alpha = point_alpha * 0.7, 
+      color = "grey60", alpha = point_alpha * 0.7, 
       arrow = ggplot2::arrow(length = ggplot2::unit(0.05, "cm")),
       linewidth = 0.2
     )
@@ -670,9 +681,9 @@ visualize_morse_2d <- function(morse_complex,
       alpha = point_alpha, size = point_size
     ) +
       ggplot2::scale_color_manual(
-        values = c(vertex = "firebrick2", edge = "darkslategray1", face = "forestgreen"),
-        name = "Critical Type"
-      )
+        values = c(vertex = "firebrick2", edge = "steelblue2", face = "forestgreen"),
+        name = "Critical"
+      ) 
   }
   
   message("Ultra-fast 2D visualization complete!")
