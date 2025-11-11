@@ -10,6 +10,18 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// get_MESH_cpp
+List get_MESH_cpp(NumericMatrix vertices, IntegerMatrix faces);
+RcppExport SEXP _DiscreteMorseR_get_MESH_cpp(SEXP verticesSEXP, SEXP facesSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type vertices(verticesSEXP);
+    Rcpp::traits::input_parameter< IntegerMatrix >::type faces(facesSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_MESH_cpp(vertices, faces));
+    return rcpp_result_gen;
+END_RCPP
+}
 // get_MIXEDSORT_cpp
 IntegerVector get_MIXEDSORT_cpp(CharacterVector x, bool dec);
 RcppExport SEXP _DiscreteMorseR_get_MIXEDSORT_cpp(SEXP xSEXP, SEXP decSEXP) {
@@ -49,6 +61,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_DiscreteMorseR_get_MESH_cpp", (DL_FUNC) &_DiscreteMorseR_get_MESH_cpp, 2},
     {"_DiscreteMorseR_get_MIXEDSORT_cpp", (DL_FUNC) &_DiscreteMorseR_get_MIXEDSORT_cpp, 2},
     {"_DiscreteMorseR_get_vOUT", (DL_FUNC) &_DiscreteMorseR_get_vOUT, 2},
     {"_DiscreteMorseR_get_vertTO_cpp", (DL_FUNC) &_DiscreteMorseR_get_vertTO_cpp, 3},

@@ -65,8 +65,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
   
   # Edges (1-simplex)
   ldf = list(mesh$edgesDF %>%
-               data.table::data.table() %>%
-               dplyr::select(-dplyr::any_of(c("angle", "exterior", "coplanar"))), mesh_ver)
+               data.table::data.table(), mesh_ver)
   
   mesh_edge = ldf %>%
     purrr::reduce(dplyr::left_join, by = c("i1" = "i123")) %>%
@@ -130,6 +129,39 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
     edges = mesh_edge_final,
     faces = mesh_face_final
   ))
+}
+
+#' Ultra-fast mesh preparation 
+#' @param vertices Vertex data from alphahull 
+#' @param faces Face data from alphahull
+#' @return Mesh data expected by compute_morse_complex()
+#' @export
+get_MESH <- function(vertices, faces) {
+  
+  vertices = as.matrix(vertices)
+  faces = as.matrix(faces)
+  
+  # Handle alpha hull format
+  if(nrow(vertices) == 4) vertices = t(vertices)
+  if(nrow(faces) == 3) faces = t(faces)
+  if(ncol(vertices) == 4) vertices = vertices[, 1:3]
+  if(min(faces) == 0) faces = faces + 1
+  
+  result = get_MESH_cpp(vertices, faces)
+  
+  mesh = list(
+    vertices = as.matrix(result$vertices),
+    faces = as.matrix(result$faces),
+    edgesDF = as.data.frame(result$edgesDF)
+  )
+  
+  colnames(mesh$vertices) = c("X", "Y", "Z")
+  colnames(mesh$faces) = c("i1", "i2", "i3")
+  
+  message("Minimal mesh: ", nrow(mesh$vertices), " vertices, ",
+          nrow(mesh$faces), " faces, ", nrow(mesh$edgesDF), " edges")
+  
+  return(mesh)
 }
 
 #' Compute lower star filtration for vertices
