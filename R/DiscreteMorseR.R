@@ -324,8 +324,8 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   # Batch sizing
   if (is.null(batch_size)) {
     batch_size = ceiling(n_vertex / cores)
-    batch_size = max(batch_size, 5000)  # Min batch/vertex size
-    batch_size = min(batch_size, 20000) # Max batch/vertex size
+    batch_size = max(batch_size, 5000)
+    batch_size = min(batch_size, 20000)
   }
   
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
@@ -334,35 +334,65 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   message("🚀 Rocket-fast parallel: ", n_vertex, " vertices, ", 
           total_batches, " batches, ", cores, " cores")
   
-  # Set up parallel processing
+  # PRE-COMPUTE connections to avoid passing large data
+  message("Pre-computing vertex connections...")
+  all_connections = get_vertTO_cpp(vertex, edge, face)
+  
+  # Set up parallel processing with increased memory
+  options(future.globals.maxSize = 1024 * 1024 * 1024)  # 1GB
   future::plan(future::multisession, workers = cores)
   
-  # Use the optimized function
+  # Optimized batch processor - only passes vertex indices, not large data
   process_batch = function(batch_indices, batch_num) {
     message("Batch ", batch_num, "/", total_batches, " (vertices ", 
             min(batch_indices), "-", max(batch_indices), ")")
     
-    batch_vertex = vertex[batch_indices, ]
-    result = get_lowerSTAR(batch_vertex, edge, face, output_dir, cores = 1)
+    batch_results = list()
+    for (i in batch_indices) {
+      v_id = vertex$i123[i]
+      v_z = as.numeric(vertex$Z[i])
+      
+      # Filter from pre-computed connections
+      vertTO = all_connections[grepl(paste0("\\b", v_id, "\\b"), all_connections$lexi_id), ]
+      
+      if (nrow(vertTO) > 0) {
+        vertTO = vertTO[order(gtools::mixedorder(vertTO$lexi_label, decreasing = FALSE)), ]
+        
+        first_verts = sapply(strsplit(vertTO$lexi_label, " "), function(x) as.numeric(x[1]))
+        valid_simplices = first_verts <= v_z
+        
+        if (any(valid_simplices)) {
+          result = cbind(data.frame(id = v_id), vertTO[valid_simplices, ])
+          batch_results[[i]] = result
+          
+          if (!is.null(output_dir)) {
+            write.table(result, 
+                        file = file.path(output_dir, "lowerSTAR.txt"),
+                        sep = "\t", append = TRUE, col.names = FALSE, row.names = FALSE)
+          }
+        }
+      }
+    }
     
+    batch_results = batch_results[!sapply(batch_results, is.null)]
     message("✅ Batch ", batch_num, "/", total_batches, " complete - ", 
-            length(result), " lower star sets")
+            length(batch_results), " lower star sets")
     
-    return(result)
+    return(batch_results)
   }
   
   # Add batch numbers
-  batch_list = lapply(seq_along(batches), function(i) {
+  batch_list <- lapply(seq_along(batches), function(i) {
     list(indices = batches[[i]], number = i)
   })
   
   # Process batches in parallel
-  results = furrr::future_map(batch_list, function(batch) {
+  results <- furrr::future_map(batch_list, function(batch) {
     process_batch(batch$indices, batch$number)
   }, .options = furrr::furrr_options(seed = TRUE))
   
   # Combine results
-  final_results = unlist(results, recursive = FALSE)
+  final_results <- unlist(results, recursive = FALSE)
   
   message("🎉 Parallel computation complete: ", length(final_results), " total lower star sets")
   
