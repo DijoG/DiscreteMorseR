@@ -529,21 +529,21 @@ get_simplexCENTER <- function(simplex, vertices_matrix) {
 #' Fast Morse complex visualization using get_simplexCENTER()
 #'
 #' @param morse_complex Output from compute_morse_complex()
-#' @param projection Projection plane: "XY", "XZ", or "YZ" (default: "XY")
+#' @param projection Projection plane: "XY", "XZ", or "YZ" (default: "XZ")
 #' @param point_alpha Point transparency (default: 0.6)
 #' @param point_size Point size (default: 1)
+#' @param max_points Maximum points to plot per category (default: 30000)
 #' @param plot_gradient Whether to plot gradient arrows (default: TRUE)
 #' @param plot_critical Whether to plot critical points (default: TRUE)
-#' @param max_points Maximum points to plot per category (default: 50000)
 #' @return ggplot2 object
 #' @export
 visualize_MORSE_2d <- function(morse_complex, 
                                projection = "XZ",
-                               point_alpha = 0.6,
-                               point_size = 1,
+                               point_alpha = 0.6, 
+                               point_size = 1, 
+                               max_points = 30000,
                                plot_gradient = TRUE,
-                               plot_critical = TRUE,
-                               max_points = 30000) {
+                               plot_critical = TRUE) {
   
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
@@ -801,36 +801,41 @@ visualize_MORSE_2d <- function(morse_complex,
 #' Create multiple 2D projection plots
 #'
 #' @param morse_complex Output from compute_MORSE_complex()
-#' @param point_alpha Point transparency
-#' @param point_size Point size  
-#' @param max_points Maximum points per plot
+#' @param point_alpha Point transparency (default: 0.6)
+#' @param point_size Point size (default: 1)
+#' @param max_points Maximum points to plot per category (default: 30000)
+#' @param plot_gradient Whether to plot gradient arrows (default: TRUE)
+#' @param plot_critical Whether to plot critical points (default: TRUE)
 #' @return List of ggplot2 objects
 #' @export
-visualize_MORSE_2d_panel <- function(morse_complex,
-                                     point_alpha = 0.6,
-                                     point_size = 1,
-                                     max_points = 30000) {
+visualize_MORSE_2d_panel <- function(morse_complex, 
+                                     point_alpha = 0.6, 
+                                     point_size = 1, 
+                                     max_points = 30000,
+                                     plot_gradient = TRUE,
+                                     plot_critical = TRUE) {
   
   if (!requireNamespace("patchwork", quietly = TRUE)) {
     stop("Package 'patchwork' required for panel plots. Install with: install.packages('patchwork')")
   }
   
   plots = list()
-  
   projections = c("XY", "XZ", "YZ")
+  
   for (proj in projections) {
     plots[[proj]] = visualize_morse_2d(
-      morse_complex,
+      morse_complex, 
       projection = proj,
-      point_alpha = point_alpha,
-      point_size = point_size,
-      max_points = max_points
+      point_alpha = point_alpha, 
+      point_size = point_size, 
+      max_points = max_points,
+      plot_gradient = plot_gradient,
+      plot_critical = plot_critical
     )
   }
   
-  # Combine with patchwork
   combined_plot = plots$XY + plots$XZ + plots$YZ + 
-    patchwork::plot_layout(ncol = 2, guides = "collect") &
+    patchwork::plot_layout(ncol = 2, guides = "collect") & 
     ggplot2::theme(legend.position = "bottom")
   
   return(combined_plot)
