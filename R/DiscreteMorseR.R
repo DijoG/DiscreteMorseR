@@ -45,7 +45,7 @@ get_lexIDLAB = function(df) {
 #' Ultra-fast mesh preparation 
 #' @param vertices Vertex data from alphahull 
 #' @param faces Face data from alphahull
-#' @return Mesh data expected by compute_morse_complex()
+#' @return Mesh data expected by compute_MORSE_complex()
 #' @export
 get_MESH = function(vertices, faces) {
   
@@ -528,7 +528,7 @@ get_simplexCENTER <- function(simplex, vertices_matrix) {
 }
 #' Fast Morse complex visualization using get_simplexCENTER()
 #'
-#' @param morse_complex Output from compute_morse_complex()
+#' @param morse_complex Output from compute_MORSE_complex()
 #' @param projection Projection plane: "XY", "XZ", or "YZ" (default: "XZ")
 #' @param point_alpha Point transparency (default: 0.6)
 #' @param point_size Point size (default: 1)
@@ -823,7 +823,7 @@ visualize_MORSE_2d_panel <- function(morse_complex,
   projections = c("XY", "XZ", "YZ")
   
   for (proj in projections) {
-    plots[[proj]] = visualize_morse_2d(
+    plots[[proj]] = visualize_MORSE_2d(
       morse_complex, 
       projection = proj,
       point_alpha = point_alpha, 
@@ -850,14 +850,14 @@ visualize_MORSE_2d_panel <- function(morse_complex,
 #' @param dpi Resolution
 #' @param ... Additional arguments to visualize_MORSE_2d()
 #' @export
-save_morse_2d <- function(morse_complex, filename, 
+save_MORSE_2d <- function(morse_complex, filename, 
                           width = 10, height = 8, dpi = 300, ...) {
   
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required.")
   }
   
-  plot = visualize_morse_2d(morse_complex, ...)
+  plot = visualize_MORSE_2d(morse_complex, ...)
   
   ggplot2::ggsave(filename, plot, width = width, height = height, dpi = dpi)
   

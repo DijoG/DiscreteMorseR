@@ -12,7 +12,7 @@ get_MESH(vertices, faces)
 \item{faces}{Face data from alphahull}
 }
 \value{
-Mesh data expected by compute_morse_complex()
+Mesh data expected by compute_MORSE_complex()
 }
 \description{
 Ultra-fast mesh preparation

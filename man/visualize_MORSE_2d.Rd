@@ -15,7 +15,7 @@ visualize_MORSE_2d(
 )
 }
 \arguments{
-\item{morse_complex}{Output from compute_morse_complex()}
+\item{morse_complex}{Output from compute_MORSE_complex()}
 
 \item{projection}{Projection plane: "XY", "XZ", or "YZ" (default: "XZ")}
 
