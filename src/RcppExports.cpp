@@ -46,6 +46,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// get_simplexCENTER_cpp
+NumericVector get_simplexCENTER_cpp(CharacterVector simplex, NumericMatrix vertices);
+RcppExport SEXP _DiscreteMorseR_get_simplexCENTER_cpp(SEXP simplexSEXP, SEXP verticesSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< CharacterVector >::type simplex(simplexSEXP);
+    Rcpp::traits::input_parameter< NumericMatrix >::type vertices(verticesSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_simplexCENTER_cpp(simplex, vertices));
+    return rcpp_result_gen;
+END_RCPP
+}
 // get_vOUT
 List get_vOUT(DataFrame v, CharacterVector ve_e_p);
 RcppExport SEXP _DiscreteMorseR_get_vOUT(SEXP vSEXP, SEXP ve_e_pSEXP) {
@@ -88,6 +100,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_DiscreteMorseR_get_MESH_cpp", (DL_FUNC) &_DiscreteMorseR_get_MESH_cpp, 2},
     {"_DiscreteMorseR_get_MIXEDSORT_cpp", (DL_FUNC) &_DiscreteMorseR_get_MIXEDSORT_cpp, 2},
     {"_DiscreteMorseR_get_PRECOMPUTEDvert_cpp", (DL_FUNC) &_DiscreteMorseR_get_PRECOMPUTEDvert_cpp, 2},
+    {"_DiscreteMorseR_get_simplexCENTER_cpp", (DL_FUNC) &_DiscreteMorseR_get_simplexCENTER_cpp, 2},
     {"_DiscreteMorseR_get_vOUT", (DL_FUNC) &_DiscreteMorseR_get_vOUT, 2},
     {"_DiscreteMorseR_get_vertTO_cpp", (DL_FUNC) &_DiscreteMorseR_get_vertTO_cpp, 3},
     {"_DiscreteMorseR_proc_lowerSTAR_cpp", (DL_FUNC) &_DiscreteMorseR_proc_lowerSTAR_cpp, 2},

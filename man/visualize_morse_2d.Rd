@@ -2,7 +2,7 @@
 % Please edit documentation in R/DiscreteMorseR.R
 \name{visualize_morse_2d}
 \alias{visualize_morse_2d}
-\title{Visualize Morse complex as 2D projections}
+\title{Fast Morse complex visualization using get_simplexCENTER()}
 \usage{
 visualize_morse_2d(
   morse_complex,
@@ -11,7 +11,7 @@ visualize_morse_2d(
   point_size = 1,
   plot_gradient = TRUE,
   plot_critical = TRUE,
-  max_points = 1e+05
+  max_points = 50000
 )
 }
 \arguments{
@@ -27,11 +27,11 @@ visualize_morse_2d(
 
 \item{plot_critical}{Whether to plot critical points (default: TRUE)}
 
-\item{max_points}{Maximum points to plot per category (default: 100000)}
+\item{max_points}{Maximum points to plot per category (default: 50000)}
 }
 \value{
 ggplot2 object
 }
 \description{
-Visualize Morse complex as 2D projections
+Fast Morse complex visualization using get_simplexCENTER()
 }

@@ -504,26 +504,17 @@ compute_morse_complex = function(mesh, output_dir = NULL, parallel = TRUE,
   ))
 }
 
-#' Get center coordinates of a simplex
+#' Fast simplex center calculation 
 #' 
 #' @param simplex Simplex identifier string
-#' @param vertices Vertex coordinates
+#' @param vertices_matrix Vertex coordinates as numeric matrix (columns: X, Y, Z)
 #' @return Numeric vector of coordinates
 #' @keywords internal
-get_simplex_center = function(simplex, vertices) {
-  vert_ids = as.numeric(strsplit(simplex, " ")[[1]])
-  vert_coords = vertices[vertices$i123 %in% vert_ids, c("X", "Y", "Z")]
-  
-  if (nrow(vert_coords) > 0) {
-    c(mean(as.numeric(vert_coords$X)),
-      mean(as.numeric(vert_coords$Y)),
-      mean(as.numeric(vert_coords$Z)))
-  } else {
-    c(NA, NA, NA)
-  }
+get_simplexCENTER <- function(simplex, vertices_matrix) {
+  get_simplexCENTER_cpp(simplex, vertices_matrix)
 }
 
-#' Visualize Morse complex as 2D projections
+#' Fast Morse complex visualization using get_simplexCENTER()
 #'
 #' @param morse_complex Output from compute_morse_complex()
 #' @param projection Projection plane: "XY", "XZ", or "YZ" (default: "XY")
@@ -531,16 +522,16 @@ get_simplex_center = function(simplex, vertices) {
 #' @param point_size Point size (default: 1)
 #' @param plot_gradient Whether to plot gradient arrows (default: TRUE)
 #' @param plot_critical Whether to plot critical points (default: TRUE)
-#' @param max_points Maximum points to plot per category (default: 100000)
+#' @param max_points Maximum points to plot per category (default: 50000)
 #' @return ggplot2 object
 #' @export
-visualize_morse_2d = function(morse_complex, 
-                              projection = "XY",
-                              point_alpha = 0.6,
-                              point_size = 1,
-                              plot_gradient = TRUE,
-                              plot_critical = TRUE,
-                              max_points = 100000) {
+visualize_morse_2d <- function(morse_complex, 
+                               projection = "XY",
+                               point_alpha = 0.6,
+                               point_size = 1,
+                               plot_gradient = TRUE,
+                               plot_critical = TRUE,
+                               max_points = 50000) {
   
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
@@ -550,92 +541,110 @@ visualize_morse_2d = function(morse_complex,
   vector_field = morse_complex$vector_field
   critical = morse_complex$critical
   
-  # Convert to numeric
-  vertices$X = as.numeric(vertices$X)
-  vertices$Y = as.numeric(vertices$Y)
-  vertices$Z = as.numeric(vertices$Z)
+  # Convert vertices to matrix for C++ (FASTER)
+  vertices_matrix = as.matrix(vertices[, c("X", "Y", "Z")])
   
-  # Prepare projection coordinates
-  if (projection == "XY") {
-    x_col = "X"; y_col = "Y"
-  } else if (projection == "XZ") {
-    x_col = "X"; y_col = "Z"  
-  } else if (projection == "YZ") {
-    x_col = "Y"; y_col = "Z"
-  } else {
-    stop("Projection must be 'XY', 'XZ', or 'YZ'")
+  # Pre-sample if needed
+  if (plot_gradient && length(vector_field) > max_points) {
+    vector_field = sample(vector_field, max_points)
+    message("Sampled ", max_points, " gradient arrows")
+  }
+  
+  if (plot_critical && length(critical) > max_points) {
+    critical = sample(critical, max_points)
+    message("Sampled ", max_points, " critical points")
   }
   
   plot_data = list()
   
-  # Process gradient arrows
+  # Fast gradient processing with C++
   if (plot_gradient && length(vector_field) > 0) {
-    gradient_data = data.frame(
-      x_from = numeric(), y_from = numeric(),
-      x_to = numeric(), y_to = numeric(),
-      type = character()
-    )
-    
-    # Sample if too many
-    if (length(vector_field) > max_points) {
-      vector_field = sample(vector_field, max_points)
-      message("Sampled ", max_points, " gradient arrows")
-    }
+    gradient_list = vector("list", length(vector_field))
+    valid_count = 0
     
     for (i in seq_along(vector_field)) {
       pair = vector_field[i]
-      parts = strsplit(pair, ":")[[1]]
+      parts = strsplit(pair, ":", fixed = TRUE)[[1]]
       if (length(parts) == 2) {
-        from_coords = get_simplex_center(parts[1], vertices)
-        to_coords = get_simplex_center(parts[2], vertices)
+        # Use C++ version
+        from_coords = get_simplex_center_fastest(parts[1], vertices_matrix)
+        to_coords = get_simplex_center_fastest(parts[2], vertices_matrix)
         
         if (!any(is.na(from_coords)) && !any(is.na(to_coords))) {
-          gradient_data = rbind(gradient_data, data.frame(
-            x_from = from_coords[[x_col]], y_from = from_coords[[y_col]],
-            x_to = to_coords[[x_col]], y_to = to_coords[[y_col]],
-            type = "gradient"
-          ))
+          if (projection == "XY") {
+            x_from = from_coords[1]; y_from = from_coords[2]
+            x_to = to_coords[1]; y_to = to_coords[2]
+          } else if (projection == "XZ") {
+            x_from = from_coords[1]; y_from = from_coords[3]
+            x_to = to_coords[1]; y_to = to_coords[3]
+          } else {
+            x_from = from_coords[2]; y_from = from_coords[3]
+            x_to = to_coords[2]; y_to = to_coords[3]
+          }
+          
+          if (!any(is.na(c(x_from, y_from, x_to, y_to)))) {
+            gradient_list[[valid_count + 1]] = data.frame(
+              x_from = x_from, y_from = y_from,
+              x_to = x_to, y_to = y_to,
+              type = "gradient"
+            )
+            valid_count = valid_count + 1
+          }
         }
       }
     }
-    plot_data$gradient = gradient_data
+    
+    if (valid_count > 0) {
+      plot_data$gradient = do.call(rbind, gradient_list[1:valid_count])
+    }
+    message("Valid gradient arrows: ", valid_count, "/", length(vector_field))
   }
   
-  # Process critical points
+  # ULTRA-FAST critical points processing with C++
   if (plot_critical && length(critical) > 0) {
-    critical_data = data.frame(
-      x = numeric(), y = numeric(), type = character()
-    )
-    
-    # Sample if too many
-    if (length(critical) > max_points) {
-      critical = sample(critical, max_points)
-      message("Sampled ", max_points, " critical points")
-    }
+    critical_list = vector("list", length(critical))
+    valid_count = 0
     
     for (i in seq_along(critical)) {
       crit = critical[i]
-      coords = get_simplex_center(crit, vertices)
+      # Use C++ version
+      coords = get_simplex_center_fastest(crit, vertices_matrix)
       if (!any(is.na(coords))) {
-        parts = strsplit(crit, " ")[[1]]
+        parts = strsplit(crit, " ", fixed = TRUE)[[1]]
         simplex_type = if (length(parts) == 1) "vertex" else 
           if (length(parts) == 2) "edge" else "face"
         
-        critical_data = rbind(critical_data, data.frame(
-          x = coords[[x_col]], y = coords[[y_col]], 
-          type = simplex_type
-        ))
+        if (projection == "XY") {
+          x_coord = coords[1]; y_coord = coords[2]
+        } else if (projection == "XZ") {
+          x_coord = coords[1]; y_coord = coords[3]
+        } else {
+          x_coord = coords[2]; y_coord = coords[3]
+        }
+        
+        if (!any(is.na(c(x_coord, y_coord)))) {
+          critical_list[[valid_count + 1]] = data.frame(
+            x = x_coord, y = y_coord, 
+            type = simplex_type
+          )
+          valid_count = valid_count + 1
+        }
       }
     }
-    plot_data$critical = critical_data
+    
+    if (valid_count > 0) {
+      plot_data$critical = do.call(rbind, critical_list[1:valid_count])
+    }
+    message("Valid critical points: ", valid_count, "/", length(critical))
   }
   
-  # Create plot
+  # Create the plot
   p = ggplot2::ggplot() +
     ggplot2::theme_minimal() +
     ggplot2::labs(
       title = paste("Morse Complex -", projection, "Projection"),
-      x = x_col, y = y_col
+      x = ifelse(projection == "XY", "X", ifelse(projection == "XZ", "X", "Y")),
+      y = ifelse(projection == "XY", "Y", ifelse(projection == "XZ", "Z", "Z"))
     )
   
   # Add gradient arrows
@@ -644,8 +653,8 @@ visualize_morse_2d = function(morse_complex,
       data = plot_data$gradient,
       ggplot2::aes(x = x_from, y = y_from, xend = x_to, yend = y_to),
       color = "pink", alpha = point_alpha * 0.7, 
-      arrow = ggplot2::arrow(length = ggplot2::unit(0.1, "cm")),
-      linewidth = 0.3
+      arrow = ggplot2::arrow(length = ggplot2::unit(0.05, "cm")),
+      linewidth = 0.2
     )
   }
   
@@ -662,19 +671,7 @@ visualize_morse_2d = function(morse_complex,
       )
   }
   
-  # Add density contours for very large datasets
-  if (!is.null(plot_data$critical) && nrow(plot_data$critical) > 10000) {
-    p = p + ggplot2::geom_density_2d(
-      data = plot_data$critical,
-      ggplot2::aes(x = x, y = y),
-      color = "blue", alpha = 0.3, bins = 10
-    )
-  }
-  
-  message("2D Visualization complete:")
-  if (!is.null(plot_data$gradient)) message("  Gradient arrows: ", nrow(plot_data$gradient))
-  if (!is.null(plot_data$critical)) message("  Critical points: ", nrow(plot_data$critical))
-  
+  message("Ultra-fast 2D visualization complete!")
   return(p)
 }
 
@@ -686,10 +683,10 @@ visualize_morse_2d = function(morse_complex,
 #' @param max_points Maximum points per plot
 #' @return List of ggplot2 objects
 #' @export
-visualize_morse_2d_panel = function(morse_complex,
-                                    point_alpha = 0.6,
-                                    point_size = 1,
-                                    max_points = 50000) {
+visualize_morse_2d_panel <- function(morse_complex,
+                                     point_alpha = 0.6,
+                                     point_size = 1,
+                                     max_points = 50000) {
   
   if (!requireNamespace("patchwork", quietly = TRUE)) {
     stop("Package 'patchwork' required for panel plots. Install with: install.packages('patchwork')")
@@ -725,8 +722,8 @@ visualize_morse_2d_panel = function(morse_complex,
 #' @param dpi Resolution
 #' @param ... Additional arguments to visualize_morse_2d()
 #' @export
-save_morse_2d = function(morse_complex, filename, 
-                         width = 10, height = 8, dpi = 300, ...) {
+save_morse_2d <- function(morse_complex, filename, 
+                          width = 10, height = 8, dpi = 300, ...) {
   
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required.")
