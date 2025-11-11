@@ -42,94 +42,6 @@ get_lexIDLAB = function(df) {
   return(result)
 }
 
-#' Extract and process simplices from mesh
-#'
-#' @param mesh Mesh object from MeshesOperations
-#' @param txt_dirout Directory for output files (optional)
-#' @return List of processed simplices
-#' @keywords internal
-get_SIMPLICES = function(mesh, txt_dirout = "") {
-  
-  # Vertices (0-simplex)
-  mesh_ver = mesh$vertices %>%
-    data.table::data.table() %>%
-    data.table::setnames(., c("X", "Y", "Z")) %>%
-    dplyr::mutate(i123 = 1:dplyr::n(), .before = 1) %>%
-    dplyr::distinct() %>% 
-    dplyr::mutate(Z = as.character(Z))
-  
-  if (txt_dirout != "") {
-    readr::write_tsv(mesh_ver, stringr::str_c(txt_dirout, "/vertices.txt"))
-  }
-  
-  # Edges (1-simplex)
-  ldf = list(mesh$edgesDF %>%
-               data.table::data.table(), mesh_ver)
-  
-  mesh_edge = ldf %>%
-    purrr::reduce(dplyr::left_join, by = c("i1" = "i123")) %>%
-    dplyr::rename(ii1X = X, ii1Y = Y, ii1Z = Z)
-  
-  ldf = list(mesh_edge, mesh_ver)
-  
-  mesh_edge = ldf %>%
-    purrr::reduce(dplyr::left_join, by = c("i2" = "i123")) %>%
-    dplyr::rename(ii2X = X, ii2Y = Y, ii2Z = Z) %>%
-    dplyr::mutate(
-      label = stringr::str_c(as.character(ii1Z), as.character(ii2Z), sep = " "),
-      idlabel = stringr::str_c(as.character(i1), as.character(i2), sep = " ")
-    )
-  
-  out = get_lexIDLAB(mesh_edge)
-  
-  # Use cbind!
-  mesh_edge_final = cbind(mesh_edge, out)
-  
-  if (txt_dirout != "") {
-    readr::write_tsv(mesh_edge_final, stringr::str_c(txt_dirout, "/edges.txt"))
-  }
-  
-  # Faces (2-simplex)
-  ldfa = list(mesh$faces %>%
-                data.table::data.table() %>%
-                data.table::setnames(., c("i1", "i2", "i3")), mesh_ver)
-  
-  mesh_f = ldfa %>%
-    purrr::reduce(dplyr::left_join, by = c("i1" = "i123")) %>%
-    dplyr::rename(ii1X = X, ii1Y = Y, ii1Z = Z)
-  
-  ldfa = list(mesh_f, mesh_ver)
-  
-  mesh_f = ldfa %>%
-    purrr::reduce(dplyr::left_join, by = c("i2" = "i123")) %>%
-    dplyr::rename(ii2X = X, ii2Y = Y, ii2Z = Z)
-  
-  ldfa = list(mesh_f, mesh_ver)
-  
-  mesh_face = ldfa %>%
-    purrr::reduce(dplyr::left_join, by = c("i3" = "i123")) %>%
-    dplyr::rename(ii3X = X, ii3Y = Y, ii3Z = Z) %>%
-    dplyr::mutate(
-      label = stringr::str_c(as.character(ii1Z), as.character(ii2Z), as.character(ii3Z), sep = " "),
-      idlabel = stringr::str_c(as.character(i1), as.character(i2), as.character(i3), sep = " ")
-    )
-  
-  out = get_lexIDLAB(mesh_face)
-  
-  # Use cbind!
-  mesh_face_final = cbind(mesh_face, out)
-  
-  if (txt_dirout != "") {
-    readr::write_tsv(mesh_face_final, stringr::str_c(txt_dirout, "/faces.txt"))
-  }
-  
-  return(list(
-    vertices = mesh_ver,
-    edges = mesh_edge_final,
-    faces = mesh_face_final
-  ))
-}
-
 #' Ultra-fast mesh preparation 
 #' @param vertices Vertex data from alphahull 
 #' @param faces Face data from alphahull
@@ -161,6 +73,83 @@ get_MESH = function(vertices, faces) {
           nrow(mesh$faces), " faces, ", nrow(mesh$edges), " edges")
   
   return(mesh)
+}
+
+#' Extract and process simplices from mesh
+#'
+#' @param mesh Mesh object from get_MESH()
+#' @param txt_dirout Directory for output files (optional)
+#' @return List of processed simplices
+#' @keywords internal
+get_SIMPLICES = function(mesh, txt_dirout = "") {
+  
+  # Vertices (0-simplex) - Safe for parallel
+  mesh_ver = as.data.frame(mesh$vertices)
+  colnames(mesh_ver) = c("X", "Y", "Z")
+  mesh_ver$i123 = 1:nrow(mesh_ver)
+  mesh_ver = mesh_ver[!duplicated(mesh_ver), ]
+  mesh_ver$Z = as.character(mesh_ver$Z)
+  
+  if (txt_dirout != "") {
+    readr::write_tsv(mesh_ver, stringr::str_c(txt_dirout, "/vertices.txt"))
+  }
+  
+  # Edges (1-simplex) - Safe for parallel
+  edges_df = as.data.frame(mesh$edges)
+  colnames(edges_df) = c("i1", "i2")
+  
+  # First join - i1 to vertices
+  mesh_edge = dplyr::left_join(edges_df, mesh_ver, by = c("i1" = "i123")) %>%
+    dplyr::rename(ii1X = X, ii1Y = Y, ii1Z = Z)
+  
+  # Second join - i2 to vertices  
+  mesh_edge = dplyr::left_join(mesh_edge, mesh_ver, by = c("i2" = "i123")) %>%
+    dplyr::rename(ii2X = X, ii2Y = Y, ii2Z = Z) %>%
+    dplyr::mutate(
+      label = stringr::str_c(as.character(ii1Z), as.character(ii2Z), sep = " "),
+      idlabel = stringr::str_c(as.character(i1), as.character(i2), sep = " ")
+    )
+  
+  out = get_lexIDLAB(mesh_edge)
+  
+  # Use cbind! (Restored from original)
+  mesh_edge_final = cbind(mesh_edge, out)
+  
+  if (txt_dirout != "") {
+    readr::write_tsv(mesh_edge_final, stringr::str_c(txt_dirout, "/edges.txt"))
+  }
+  
+  # Faces (2-simplex) - Already has correct column names!
+  faces_df = as.data.frame(mesh$faces)  # Keeps i1, i2, i3 from matrix
+  
+  # Three explicit joins for faces
+  mesh_f = dplyr::left_join(faces_df, mesh_ver, by = c("i1" = "i123")) %>%
+    dplyr::rename(ii1X = X, ii1Y = Y, ii1Z = Z)
+  
+  mesh_f = dplyr::left_join(mesh_f, mesh_ver, by = c("i2" = "i123")) %>%
+    dplyr::rename(ii2X = X, ii2Y = Y, ii2Z = Z)
+  
+  mesh_face = dplyr::left_join(mesh_f, mesh_ver, by = c("i3" = "i123")) %>%
+    dplyr::rename(ii3X = X, ii3Y = Y, ii3Z = Z) %>%
+    dplyr::mutate(
+      label = stringr::str_c(as.character(ii1Z), as.character(ii2Z), as.character(ii3Z), sep = " "),
+      idlabel = stringr::str_c(as.character(i1), as.character(i2), as.character(i3), sep = " ")
+    )
+  
+  out = get_lexIDLAB(mesh_face)
+  
+  # Use cbind! (Restored from original)
+  mesh_face_final = cbind(mesh_face, out)
+  
+  if (txt_dirout != "") {
+    readr::write_tsv(mesh_face_final, stringr::str_c(txt_dirout, "/faces.txt"))
+  }
+  
+  return(list(
+    vertices = mesh_ver,
+    edges = mesh_edge_final,
+    faces = mesh_face_final
+  ))
 }
 
 #' Compute lower star filtration for vertices
