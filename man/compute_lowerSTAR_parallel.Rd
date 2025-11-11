@@ -10,7 +10,7 @@ compute_lowerSTAR_parallel(
   face,
   output_dir = NULL,
   cores = NULL,
-  batch_size = 5000
+  batch_size = NULL
 )
 }
 \arguments{

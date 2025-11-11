@@ -1,7 +1,6 @@
 #' Discrete Morse Theory Analysis
 #' 
 #' @description Compute Morse vector field and critical simplices from 3D meshes.
-#' @name DiscreteMorseR
 #' @docType package
 #' @useDynLib DiscreteMorseR, .registration = TRUE
 #' @importFrom Rcpp evalCpp
@@ -309,94 +308,159 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
 #' @return Combined lower star results
 #' @export
 compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
-                                       cores = NULL, batch_size = 5000) {
+                                       cores = NULL, batch_size = NULL) {
   
-  if (!requireNamespace("furrr", quietly = TRUE)) {
-    stop("Package 'furrr' required for parallel processing")
+  if (!requireNamespace("clustermq", quietly = TRUE)) {
+    stop("Package 'clustermq' required. Install with: install.packages('clustermq')")
   }
   
   if (is.null(cores)) {
-    cores = parallel::detectCores() - 1
+    cores = min(parallel::detectCores() - 1, 20)
   }
   
   n_vertex = nrow(vertex)
   
-  # Batch sizing
+  # Optimal batch sizing
   if (is.null(batch_size)) {
-    batch_size = ceiling(n_vertex / cores)
-    batch_size = max(batch_size, 5000)
-    batch_size = min(batch_size, 20000)
+    batch_size = optimal_batch_size(n_vertex, cores)
   }
   
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   total_batches = length(batches)
   
-  message("🚀 Rocket-fast parallel: ", n_vertex, " vertices, ", 
+  message("🚀 OPTIMIZED clustermq: ", n_vertex, " vertices, ", 
           total_batches, " batches, ", cores, " cores")
   
-  # PRE-COMPUTE connections to avoid passing large data
-  message("Pre-computing vertex connections...")
+  # Pre-compute connections
+  message("1. Pre-computing vertex connections...")
   all_connections = get_vertTO_cpp(vertex, edge, face)
   
-  # Set up parallel processing with increased memory
-  options(future.globals.maxSize = 1024 * 1024 * 1024)  # 1GB
-  future::plan(future::multisession, workers = cores)
+  # Pre-compute vertex-simplex mapping using BASE R
+  message("2. Building vertex-simplex index...")
+  vertex_to_simplices = build_vertex_index_base(all_connections)
   
-  # Optimized batch processor - only passes vertex indices, not large data
-  process_batch = function(batch_indices, batch_num) {
-    message("Batch ", batch_num, "/", total_batches, " (vertices ", 
-            min(batch_indices), "-", max(batch_indices), ")")
+  # Pre-compute first vertex Z values for faster filtering
+  message("3. Pre-computing simplex Z values...")
+  first_verts_z = precompute_first_vertices(all_connections)
+  
+  # Optimized worker function
+  worker_function = function(batch_indices, vertex_i123, vertex_Z, 
+                              connections, vertex_index, first_z, output_path) {
     
     batch_results = list()
+    
     for (i in batch_indices) {
-      v_id = vertex$i123[i]
-      v_z = as.numeric(vertex$Z[i])
+      v_id = vertex_i123[i]
+      v_z = as.numeric(vertex_Z[i])
       
-      # Filter from pre-computed connections
-      vertTO = all_connections[grepl(paste0("\\b", v_id, "\\b"), all_connections$lexi_id), ]
+      # Ultra-fast lookup using pre-built index
+      simplex_indices = vertex_index[[as.character(v_id)]]
       
-      if (nrow(vertTO) > 0) {
-        vertTO = vertTO[order(gtools::mixedorder(vertTO$lexi_label, decreasing = FALSE)), ]
+      if (!is.null(simplex_indices) && length(simplex_indices) > 0) {
+        # Get valid simplices using pre-computed Z values
+        valid_indices = simplex_indices[first_z[simplex_indices] <= v_z]
         
-        first_verts = sapply(strsplit(vertTO$lexi_label, " "), function(x) as.numeric(x[1]))
-        valid_simplices = first_verts <= v_z
-        
-        if (any(valid_simplices)) {
-          result = cbind(data.frame(id = v_id), vertTO[valid_simplices, ])
-          batch_results[[i]] = result
+        if (length(valid_indices) > 0) {
+          # Extract valid simplices
+          valid_simplices = connections[valid_indices, ]
           
-          if (!is.null(output_dir)) {
-            write.table(result, 
-                        file = file.path(output_dir, "lowerSTAR.txt"),
-                        sep = "\t", append = TRUE, col.names = FALSE, row.names = FALSE)
+          # Fast sorting (only if needed for this vertex)
+          if (nrow(valid_simplices) > 1) {
+            order_idx = order(gtools::mixedorder(valid_simplices$lexi_label, decreasing = FALSE))
+            valid_simplices = valid_simplices[order_idx, ]
+          }
+          
+          # Create results efficiently
+          result = data.frame(
+            id = rep(v_id, nrow(valid_simplices)),
+            lexi_label = valid_simplices$lexi_label,
+            lexi_id = valid_simplices$lexi_id,
+            stringsAsFactors = FALSE
+          )
+          
+          batch_results[[length(batch_results) + 1]] = result
+          
+          # Efficient file writing
+          if (!is.null(output_path)) {
+            write.table(result, file = output_path,
+                        sep = "\t", append = TRUE, 
+                        col.names = FALSE, row.names = FALSE,
+                        quote = FALSE)
           }
         }
       }
     }
     
-    batch_results = batch_results[!sapply(batch_results, is.null)]
-    message("✅ Batch ", batch_num, "/", total_batches, " complete - ", 
-            length(batch_results), " lower star sets")
-    
     return(batch_results)
   }
   
-  # Add batch numbers
-  batch_list <- lapply(seq_along(batches), function(i) {
-    list(indices = batches[[i]], number = i)
-  })
+  # PREPARE data for workers
+  vertex_i123 = vertex$i123
+  vertex_Z = vertex$Z
+  output_path = if (!is.null(output_dir)) file.path(output_dir, "lowerSTAR.txt")
   
-  # Process batches in parallel
-  results <- furrr::future_map(batch_list, function(batch) {
-    process_batch(batch$indices, batch$number)
-  }, .options = furrr::furrr_options(seed = TRUE))
+  # Initialize output file
+  if (!is.null(output_path) && file.exists(output_path)) {
+    file.remove(output_path)
+  }
+  
+  # Run with clustermq
+  message("4. Starting optimized parallel processing...")
+  
+  results = clustermq::Q(
+    fun = worker_function,
+    batch_indices = batches,
+    const = list(
+      vertex_i123 = vertex_i123,
+      vertex_Z = vertex_Z,
+      connections = all_connections,
+      vertex_index = vertex_to_simplices,
+      first_z = first_verts_z,
+      output_path = output_path
+    ),
+    n_jobs = cores,
+    template = list(),
+    export = list(gtools = "gtools"),
+    chunk_size = 1
+  )
   
   # Combine results
-  final_results <- unlist(results, recursive = FALSE)
+  final_results = unlist(results, recursive = FALSE)
+  final_results = final_results[!sapply(final_results, is.null)]
   
-  message("🎉 Parallel computation complete: ", length(final_results), " total lower star sets")
+  message("✅ OPTIMIZED parallel complete: ", length(final_results), 
+          " lower star sets (", round(length(final_results) / n_vertex * 100, 1), "%)")
   
   return(final_results)
+}
+
+#' @keywords internal
+optimal_batch_size <- function(n_vertex, cores) {
+  if (n_vertex > 200000) return(10000)
+  if (n_vertex > 100000) return(5000)
+  return(2000)
+}
+
+#' @keywords internal
+build_vertex_index_base <- function(connections) {
+  vertex_index = list()
+  lexi_ids = connections$lexi_id
+  
+  for (i in seq_along(lexi_ids)) {
+    vertices_in_simplex = strsplit(lexi_ids[i], " ")[[1]]
+    for (v_id in vertices_in_simplex) {
+      if (is.null(vertex_index[[v_id]])) {
+        vertex_index[[v_id]] = integer(0)
+      }
+      vertex_index[[v_id]] = c(vertex_index[[v_id]], i)
+    }
+  }
+  return(vertex_index)
+}
+
+#' @keywords internal
+precompute_first_vertices <- function(connections) {
+  sapply(strsplit(connections$lexi_label, " "), function(x) as.numeric(x[1]))
 }
 
 #' Compute Morse complex from mesh
