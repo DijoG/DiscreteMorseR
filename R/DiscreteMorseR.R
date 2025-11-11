@@ -307,6 +307,16 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
 #' @param batch_size Number of vertices per batch (default minimum: 5000, allowed maximum: 20000)
 #' @return Combined lower star results
 #' @export
+#' Compute lower star in parallel 
+#'
+#' @param vertex Vertex data
+#' @param edge Edge data
+#' @param face Face data
+#' @param output_dir Output directory
+#' @param cores Number of cores (default: available cores-1)
+#' @param batch_size Number of vertices per batch
+#' @return Combined lower star results
+#' @export
 compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
                                        cores = NULL, batch_size = NULL) {
   
@@ -328,24 +338,25 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   total_batches = length(batches)
   
-  message("🚀 OPTIMIZED clustermq: ", n_vertex, " vertices, ", 
+  message("🚀 ROCKET-OPTIMIZED clustermq: ", n_vertex, " vertices, ", 
           total_batches, " batches, ", cores, " cores")
   
-  # Pre-compute connections
+  # Two C++ calls for all precomputation
   message("1. Pre-computing vertex connections...")
   all_connections = get_vertTO_cpp(vertex, edge, face)
   
-  # Pre-compute vertex-simplex mapping using BASE R
-  message("2. Building vertex-simplex index...")
-  vertex_to_simplices = build_vertex_index_base(all_connections)
+  message("2. Building optimized vertex-simplex index...")
+  precomputed_data = get_PRECOMPUTEDvert_cpp(
+    all_connections$lexi_id, 
+    all_connections$lexi_label
+  )
   
-  # Pre-compute first vertex Z values for faster filtering
-  message("3. Pre-computing simplex Z values...")
-  first_verts_z = precompute_first_vertices(all_connections)
+  # Extract the precomputed data
+  vertex_to_simplices = precomputed_data$vertex_index
+  first_verts_z = precomputed_data$first_verts_z
   
-  # Optimized worker function
   worker_function = function(batch_indices, vertex_i123, vertex_Z, 
-                              connections, vertex_index, first_z, output_path) {
+                             connections, vertex_index, first_z, output_path) {
     
     batch_results = list()
     
@@ -394,7 +405,7 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
     return(batch_results)
   }
   
-  # PREPARE data for workers
+  # Prepare data for workers
   vertex_i123 = vertex$i123
   vertex_Z = vertex$Z
   output_path = if (!is.null(output_dir)) file.path(output_dir, "lowerSTAR.txt")
@@ -439,28 +450,6 @@ optimal_batch_size <- function(n_vertex, cores) {
   if (n_vertex > 200000) return(10000)
   if (n_vertex > 100000) return(5000)
   return(2000)
-}
-
-#' @keywords internal
-build_vertex_index_base <- function(connections) {
-  vertex_index = list()
-  lexi_ids = connections$lexi_id
-  
-  for (i in seq_along(lexi_ids)) {
-    vertices_in_simplex = strsplit(lexi_ids[i], " ")[[1]]
-    for (v_id in vertices_in_simplex) {
-      if (is.null(vertex_index[[v_id]])) {
-        vertex_index[[v_id]] = integer(0)
-      }
-      vertex_index[[v_id]] = c(vertex_index[[v_id]], i)
-    }
-  }
-  return(vertex_index)
-}
-
-#' @keywords internal
-precompute_first_vertices <- function(connections) {
-  sapply(strsplit(connections$lexi_label, " "), function(x) as.numeric(x[1]))
 }
 
 #' Compute Morse complex from mesh

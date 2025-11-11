@@ -9,6 +9,10 @@ get_MIXEDSORT_cpp <- function(x, dec = TRUE) {
     .Call(`_DiscreteMorseR_get_MIXEDSORT_cpp`, x, dec)
 }
 
+get_PRECOMPUTEDvert_cpp <- function(lexi_ids, lexi_labels) {
+    .Call(`_DiscreteMorseR_get_PRECOMPUTEDvert_cpp`, lexi_ids, lexi_labels)
+}
+
 get_vOUT <- function(v, ve_e_p) {
     .Call(`_DiscreteMorseR_get_vOUT`, v, ve_e_p)
 }

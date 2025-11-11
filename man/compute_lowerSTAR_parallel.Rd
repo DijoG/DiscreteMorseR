@@ -24,9 +24,11 @@ compute_lowerSTAR_parallel(
 
 \item{cores}{Number of cores (default: available cores-1)}
 
-\item{batch_size}{Number of vertices per batch (default minimum: 5000, allowed maximum: 20000)}
+\item{batch_size}{Number of vertices per batch}
 }
 \value{
+Combined lower star results
+
 Combined lower star results
 }
 \description{

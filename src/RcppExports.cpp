@@ -34,6 +34,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// get_PRECOMPUTEDvert_cpp
+List get_PRECOMPUTEDvert_cpp(CharacterVector lexi_ids, CharacterVector lexi_labels);
+RcppExport SEXP _DiscreteMorseR_get_PRECOMPUTEDvert_cpp(SEXP lexi_idsSEXP, SEXP lexi_labelsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< CharacterVector >::type lexi_ids(lexi_idsSEXP);
+    Rcpp::traits::input_parameter< CharacterVector >::type lexi_labels(lexi_labelsSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_PRECOMPUTEDvert_cpp(lexi_ids, lexi_labels));
+    return rcpp_result_gen;
+END_RCPP
+}
 // get_vOUT
 List get_vOUT(DataFrame v, CharacterVector ve_e_p);
 RcppExport SEXP _DiscreteMorseR_get_vOUT(SEXP vSEXP, SEXP ve_e_pSEXP) {
@@ -63,6 +75,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_DiscreteMorseR_get_MESH_cpp", (DL_FUNC) &_DiscreteMorseR_get_MESH_cpp, 2},
     {"_DiscreteMorseR_get_MIXEDSORT_cpp", (DL_FUNC) &_DiscreteMorseR_get_MIXEDSORT_cpp, 2},
+    {"_DiscreteMorseR_get_PRECOMPUTEDvert_cpp", (DL_FUNC) &_DiscreteMorseR_get_PRECOMPUTEDvert_cpp, 2},
     {"_DiscreteMorseR_get_vOUT", (DL_FUNC) &_DiscreteMorseR_get_vOUT, 2},
     {"_DiscreteMorseR_get_vertTO_cpp", (DL_FUNC) &_DiscreteMorseR_get_vertTO_cpp, 3},
     {NULL, NULL, 0}
