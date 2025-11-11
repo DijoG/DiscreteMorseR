@@ -294,7 +294,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   # Set reasonable timeout (10 mins)
   options(clustermq.worker.timeout = 600)  
   
-  # Cap cores to 32
+  # Cap number of cores to 32
   if (is.null(cores)) {
     cores = min(parallel::detectCores() - 1, 32)  
   } else {
