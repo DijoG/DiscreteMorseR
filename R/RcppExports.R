@@ -21,3 +21,7 @@ get_vertTO_cpp <- function(vertex, edge, face) {
     .Call(`_DiscreteMorseR_get_vertTO_cpp`, vertex, edge, face)
 }
 
+proc_lowerSTAR_cpp <- function(list_lowerSTAR, vertex) {
+    .Call(`_DiscreteMorseR_proc_lowerSTAR_cpp`, list_lowerSTAR, vertex)
+}
+

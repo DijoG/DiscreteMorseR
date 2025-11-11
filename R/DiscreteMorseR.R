@@ -244,57 +244,12 @@ get_lowerSTAR = function(vertex, edge, face, dirout = NULL, cores = 1) {
 #' @param vertex Vertex data
 #' @return List with vector field and critical simplices
 #' @keywords internal
-proc_lowerSTAR = function(list_lowerSTAR, vertex) {
-  
-  VE_ = c()
-  CR_ = c()
-  
-  for (i in seq_along(list_lowerSTAR)) {
-    if (nrow(list_lowerSTAR[[i]]) == 0) {
-      CR_ = c(CR_, as.character(vertex[i, "i123"]))
-    } else {
-      PAIR_v_e_id = stringr::str_c(vertex[i, "i123"], ":", list_lowerSTAR[[i]]$lexi_id[1])
-      
-      faceV = list_lowerSTAR[[i]]$lexi_id[-1][purrr::map_dbl(purrr::map(list_lowerSTAR[[i]]$lexi_id[-1], ~stringr::str_split_1(., " ")), length) == 2]
-      cofaceV = list_lowerSTAR[[i]]$lexi_id[-1][purrr::map_dbl(purrr::map(list_lowerSTAR[[i]]$lexi_id[-1], ~stringr::str_split_1(., " ")), length) == 3]
-      
-      if (length(faceV) == 0) {
-        VE_ = c(VE_, PAIR_v_e_id)
-        next
-      }
-      
-      PAIR = c()
-      FACEC = c()
-      CRIT = c()
-      for (ii in seq_along(faceV)) {
-        cofaces = cofaceV[purrr::map_lgl(cofaceV, ~stringr::str_detect(., stringr::str_c("^\\b", faceV[ii], "\\b")))]
-        
-        if (ii > 1 & any(stringr::str_detect(PAIR, faceV[ii]))) {
-          CRIT = c(CRIT, cofaces[1])
-        } else {
-          if (length(cofaces) > 0) {
-            PAIR_c = cofaces[1]
-            PAIR_  = stringr::str_c(faceV[ii], ":", PAIR_c)
-            
-            cofaceV = cofaceV[-which(cofaceV == PAIR_c)]
-            PAIR    = c(PAIR, PAIR_)
-            FACEC   = c(FACEC, faceV[ii])
-          } else {
-            CRIT = c(CRIT, faceV[ii])
-            next
-          }
-          CRIT = c(cofaceV, setdiff(faceV, FACEC)) %>% 
-            gtools::mixedsort()
-        }
-      }
-      
-      VE_ = c(VE_, PAIR_v_e_id, PAIR)
-      CR_ = c(CR_, CRIT)
-    }
-  }
-  
-  return(list(VE_ = VE_ %>% unique(),
-              CR_ = CR_ %>% na.omit() %>% unique() %>% gtools::mixedsort()))
+proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
+  result <- proc_lowerSTAR_cpp(list_lowerSTAR, vertex)
+  return(list(
+    VE_ = result$VE_,
+    CR_ = gtools::mixedsort(result$CR_)
+  ))
 }
 
 #' Compute lower star in parallel 
@@ -579,200 +534,218 @@ get_simplex_center = function(simplex, vertices) {
   }
 }
 
-#' Plot gradient vector field
-#' 
-#' @param vector_field Morse vector field
-#' @param vertices Vertex coordinates
-#' @param color Arrow color
-#' @param length_scale Scale factor for arrow length
-#' @param alpha Arrow transparency
-#' @keywords internal
-plot_gradient_field = function(vector_field, vertices, color, length_scale, alpha) {
-  
-  for (pair in vector_field) {
-    parts = strsplit(pair, ":")[[1]]
-    if (length(parts) == 2) {
-      from_simplex = parts[1]
-      to_simplex = parts[2]
-      
-      from_coords = get_simplex_center(from_simplex, vertices)
-      to_coords = get_simplex_center(to_simplex, vertices)
-      
-      if (!any(is.na(from_coords)) && !any(is.na(to_coords))) {
-        arrow_vec = (to_coords - from_coords) * length_scale
-        scaled_to = from_coords + arrow_vec
-        
-        rgl::arrows3d(from_coords, scaled_to, 
-                      color = color, alpha = alpha, lwd = 2)
-      }
-    }
-  }
-}
-
-#' Plot critical points
-#' 
-#' @param critical Critical simplices
-#' @param vertices Vertex coordinates
-#' @param colors Colors for different simplex types
-#' @param size Point size
-#' @keywords internal
-plot_critical_points = function(critical, vertices, colors, size) {
-  
-  for (crit in critical) {
-    parts = strsplit(crit, " ")[[1]]
-    
-    if (length(parts) == 1) {
-      # Critical vertex
-      vert_id = as.numeric(parts[1])
-      vert_data = vertices[vertices$i123 == vert_id, ]
-      if (nrow(vert_data) > 0) {
-        rgl::points3d(as.numeric(vert_data$X), 
-                      as.numeric(vert_data$Y), 
-                      as.numeric(vert_data$Z), 
-                      color = colors[1], size = size)
-      }
-      
-    } else if (length(parts) == 2) {
-      # Critical edge (plot midpoint)
-      edge_verts = as.numeric(parts)
-      v1 = vertices[vertices$i123 == edge_verts[1], ]
-      v2 = vertices[vertices$i123 == edge_verts[2], ]
-      if (nrow(v1) > 0 && nrow(v2) > 0) {
-        midpoint = c(
-          mean(c(as.numeric(v1$X), as.numeric(v2$X))),
-          mean(c(as.numeric(v1$Y), as.numeric(v2$Y))),
-          mean(c(as.numeric(v1$Z), as.numeric(v2$Z)))
-        )
-        rgl::points3d(midpoint[1], midpoint[2], midpoint[3], 
-                      color = colors[2], size = size)
-      }
-      
-    } else if (length(parts) == 3) {
-      # Critical face (plot centroid)
-      face_verts = as.numeric(parts)
-      v1 = vertices[vertices$i123 == face_verts[1], ]
-      v2 = vertices[vertices$i123 == face_verts[2], ]
-      v3 = vertices[vertices$i123 == face_verts[3], ]
-      if (nrow(v1) > 0 && nrow(v2) > 0 && nrow(v3) > 0) {
-        centroid = c(
-          mean(c(as.numeric(v1$X), as.numeric(v2$X), as.numeric(v3$X))),
-          mean(c(as.numeric(v1$Y), as.numeric(v2$Y), as.numeric(v3$Y))),
-          mean(c(as.numeric(v1$Z), as.numeric(v2$Z), as.numeric(v3$Z)))
-        )
-        rgl::points3d(centroid[1], centroid[2], centroid[3], 
-                      color = colors[3], size = size)
-      }
-    }
-  }
-}
-
-#' Visualize Morse complex gradient and critical points
+#' Visualize Morse complex as 2D projections
 #'
-#' @param mesh Mesh object from MeshesOperations
 #' @param morse_complex Output from compute_morse_complex()
-#' @param vertex_coords Optional: Specific vertex coordinates to highlight
-#' @param gradient_color Color for gradient arrows (default: "pink")
-#' @param critical_colors Colors for critical points: c(vertex, edge, face)
-#' @param arrow_length Scale factor for arrow length (default: 1)
-#' @param point_size Size of critical points (default: 8)
-#' @param alpha Transparency for mesh and arrows (default: 0.3)
-#' @return rgl scene
+#' @param projection Projection plane: "XY", "XZ", or "YZ" (default: "XY")
+#' @param point_alpha Point transparency (default: 0.6)
+#' @param point_size Point size (default: 1)
+#' @param plot_gradient Whether to plot gradient arrows (default: TRUE)
+#' @param plot_critical Whether to plot critical points (default: TRUE)
+#' @param max_points Maximum points to plot per category (default: 100000)
+#' @return ggplot2 object
 #' @export
-visualize_morse_gradient = function(mesh, morse_complex, vertex_coords = NULL,
-                                     gradient_color = "pink", 
-                                     critical_colors = c("firebrick2", "darkslategray1", "forestgreen"),
-                                     arrow_length = 1, point_size = 8, alpha = 0.3) {
+visualize_morse_2d = function(morse_complex, 
+                              projection = "XY",
+                              point_alpha = 0.6,
+                              point_size = 1,
+                              plot_gradient = TRUE,
+                              plot_critical = TRUE,
+                              max_points = 100000) {
   
-  required_packages = c("rgl", "MeshesOperations")
-  missing_packages = required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
-  
-  if (length(missing_packages) > 0) {
-    stop("Required packages missing: ", paste(missing_packages, collapse = ", "), 
-         ". Install with: install.packages(c('", paste(missing_packages, collapse = "', '"), "'))")
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required. Install with: install.packages('ggplot2')")
   }
   
   vertices = morse_complex$simplices$vertices
   vector_field = morse_complex$vector_field
   critical = morse_complex$critical
   
-  rgl::open3d()
-  rgl::bg3d("white")
+  # Convert to numeric
+  vertices$X = as.numeric(vertices$X)
+  vertices$Y = as.numeric(vertices$Y)
+  vertices$Z = as.numeric(vertices$Z)
   
-  rgl::shade3d(MeshesOperations::toRGL(mesh), color = "grey80", alpha = alpha)
-  
-  if (length(vector_field) > 0) {
-    plot_gradient_field(vector_field, vertices, gradient_color, arrow_length, alpha)
+  # Prepare projection coordinates
+  if (projection == "XY") {
+    x_col = "X"; y_col = "Y"
+  } else if (projection == "XZ") {
+    x_col = "X"; y_col = "Z"  
+  } else if (projection == "YZ") {
+    x_col = "Y"; y_col = "Z"
+  } else {
+    stop("Projection must be 'XY', 'XZ', or 'YZ'")
   }
   
-  if (length(critical) > 0) {
-    plot_critical_points(critical, vertices, critical_colors, point_size)
+  plot_data = list()
+  
+  # Process gradient arrows
+  if (plot_gradient && length(vector_field) > 0) {
+    gradient_data = data.frame(
+      x_from = numeric(), y_from = numeric(),
+      x_to = numeric(), y_to = numeric(),
+      type = character()
+    )
+    
+    # Sample if too many
+    if (length(vector_field) > max_points) {
+      vector_field = sample(vector_field, max_points)
+      message("Sampled ", max_points, " gradient arrows")
+    }
+    
+    for (i in seq_along(vector_field)) {
+      pair = vector_field[i]
+      parts = strsplit(pair, ":")[[1]]
+      if (length(parts) == 2) {
+        from_coords = get_simplex_center(parts[1], vertices)
+        to_coords = get_simplex_center(parts[2], vertices)
+        
+        if (!any(is.na(from_coords)) && !any(is.na(to_coords))) {
+          gradient_data = rbind(gradient_data, data.frame(
+            x_from = from_coords[[x_col]], y_from = from_coords[[y_col]],
+            x_to = to_coords[[x_col]], y_to = to_coords[[y_col]],
+            type = "gradient"
+          ))
+        }
+      }
+    }
+    plot_data$gradient = gradient_data
   }
   
-  if (!is.null(vertex_coords)) {
-    rgl::points3d(vertex_coords$X, vertex_coords$Y, vertex_coords$Z, 
-                  color = "darkgoldenrod1", size = point_size * 1.5)
+  # Process critical points
+  if (plot_critical && length(critical) > 0) {
+    critical_data = data.frame(
+      x = numeric(), y = numeric(), type = character()
+    )
+    
+    # Sample if too many
+    if (length(critical) > max_points) {
+      critical = sample(critical, max_points)
+      message("Sampled ", max_points, " critical points")
+    }
+    
+    for (i in seq_along(critical)) {
+      crit = critical[i]
+      coords = get_simplex_center(crit, vertices)
+      if (!any(is.na(coords))) {
+        parts = strsplit(crit, " ")[[1]]
+        simplex_type = if (length(parts) == 1) "vertex" else 
+          if (length(parts) == 2) "edge" else "face"
+        
+        critical_data = rbind(critical_data, data.frame(
+          x = coords[[x_col]], y = coords[[y_col]], 
+          type = simplex_type
+        ))
+      }
+    }
+    plot_data$critical = critical_data
   }
   
-  rgl::legend3d("topright", 
-                legend = c("Gradient", "Critical Vertex", "Critical Edge", "Critical Face"),
-                col = c(gradient_color, critical_colors), 
-                pch = c(NA, 16, 16, 16),
-                lty = c(1, NA, NA, NA),
-                cex = 1.2)
+  # Create plot
+  p = ggplot2::ggplot() +
+    ggplot2::theme_minimal() +
+    ggplot2::labs(
+      title = paste("Morse Complex -", projection, "Projection"),
+      x = x_col, y = y_col
+    )
   
-  message("Morse complex visualization complete!")
-  message("Critical points: ", length(critical))
-  message("Gradient arrows: ", length(vector_field))
+  # Add gradient arrows
+  if (!is.null(plot_data$gradient) && nrow(plot_data$gradient) > 0) {
+    p = p + ggplot2::geom_segment(
+      data = plot_data$gradient,
+      ggplot2::aes(x = x_from, y = y_from, xend = x_to, yend = y_to),
+      color = "pink", alpha = point_alpha * 0.7, 
+      arrow = ggplot2::arrow(length = ggplot2::unit(0.1, "cm")),
+      linewidth = 0.3
+    )
+  }
+  
+  # Add critical points
+  if (!is.null(plot_data$critical) && nrow(plot_data$critical) > 0) {
+    p = p + ggplot2::geom_point(
+      data = plot_data$critical,
+      ggplot2::aes(x = x, y = y, color = type),
+      alpha = point_alpha, size = point_size
+    ) +
+      ggplot2::scale_color_manual(
+        values = c(vertex = "firebrick2", edge = "darkslategray1", face = "forestgreen"),
+        name = "Critical Type"
+      )
+  }
+  
+  # Add density contours for very large datasets
+  if (!is.null(plot_data$critical) && nrow(plot_data$critical) > 10000) {
+    p = p + ggplot2::geom_density_2d(
+      data = plot_data$critical,
+      ggplot2::aes(x = x, y = y),
+      color = "blue", alpha = 0.3, bins = 10
+    )
+  }
+  
+  message("2D Visualization complete:")
+  if (!is.null(plot_data$gradient)) message("  Gradient arrows: ", nrow(plot_data$gradient))
+  if (!is.null(plot_data$critical)) message("  Critical points: ", nrow(plot_data$critical))
+  
+  return(p)
 }
 
-#' Create summary visualization of Morse complex
+#' Create multiple 2D projection plots
 #'
-#' @param mesh Mesh object
 #' @param morse_complex Output from compute_morse_complex()
-#' @param output_file Optional file to save screenshot
-#' @return Multi-panel rgl visualization
+#' @param point_alpha Point transparency
+#' @param point_size Point size  
+#' @param max_points Maximum points per plot
+#' @return List of ggplot2 objects
 #' @export
-visualize_morse_summary = function(mesh, morse_complex, output_file = NULL) {
+visualize_morse_2d_panel = function(morse_complex,
+                                    point_alpha = 0.6,
+                                    point_size = 1,
+                                    max_points = 50000) {
   
-  if (!requireNamespace("rgl", quietly = TRUE)) {
-    stop("Package 'rgl' required for visualization")
+  if (!requireNamespace("patchwork", quietly = TRUE)) {
+    stop("Package 'patchwork' required for panel plots. Install with: install.packages('patchwork')")
   }
   
-  if (!requireNamespace("MeshesOperations", quietly = TRUE)) {
-    stop("Package 'MeshesOperations' required for mesh conversion")
+  plots = list()
+  
+  projections = c("XY", "XZ", "YZ")
+  for (proj in projections) {
+    plots[[proj]] = visualize_morse_2d(
+      morse_complex,
+      projection = proj,
+      point_alpha = point_alpha,
+      point_size = point_size,
+      max_points = max_points
+    )
   }
   
-  rgl::open3d()
-  rgl::par3d(mfrow = c(2, 2))
+  # Combine with patchwork
+  combined_plot = plots$XY + plots$XZ + plots$YZ + 
+    patchwork::plot_layout(ncol = 2, guides = "collect") &
+    ggplot2::theme(legend.position = "bottom")
   
-  rgl::next3d()
-  rgl::shade3d(MeshesOperations::toRGL(mesh), color = "grey80", alpha = 0.3)
-  rgl::title3d("Mesh")
+  return(combined_plot)
+}
+
+#' Save 2D visualization to file
+#'
+#' @param morse_complex Output from compute_morse_complex() 
+#' @param filename Output file name
+#' @param width Plot width in inches
+#' @param height Plot height in inches
+#' @param dpi Resolution
+#' @param ... Additional arguments to visualize_morse_2d()
+#' @export
+save_morse_2d = function(morse_complex, filename, 
+                         width = 10, height = 8, dpi = 300, ...) {
   
-  rgl::next3d()
-  rgl::shade3d(MeshesOperations::toRGL(mesh), color = "grey80", alpha = 0.1)
-  plot_critical_points(morse_complex$critical, morse_complex$simplices$vertices, 
-                       c("firebrick2", "darkslategray1", "forestgreen"), 8)
-  rgl::title3d("Critical Points")
-  
-  rgl::next3d()
-  rgl::shade3d(MeshesOperations::toRGL(mesh), color = "grey80", alpha = 0.1)
-  plot_gradient_field(morse_complex$vector_field, morse_complex$simplices$vertices, 
-                      "pink", 1, 0.7)
-  rgl::title3d("Gradient Field")
-  
-  rgl::next3d()
-  rgl::shade3d(MeshesOperations::toRGL(mesh), color = "grey80", alpha = 0.1)
-  plot_gradient_field(morse_complex$vector_field, morse_complex$simplices$vertices, 
-                      "pink", 1, 0.5)
-  plot_critical_points(morse_complex$critical, morse_complex$simplices$vertices, 
-                       c("firebrick2", "darkslategray1", "forestgreen"), 6)
-  rgl::title3d("Combined View")
-  
-  rgl::par3d(mfrow = c(1, 1))
-  
-  if (!is.null(output_file)) {
-    rgl::rgl.snapshot(output_file)
-    message("Screenshot saved to: ", output_file)
+  if (!requireNamespace("ggplot2", quietly = TRUE)) {
+    stop("Package 'ggplot2' required.")
   }
+  
+  plot = visualize_morse_2d(morse_complex, ...)
+  
+  ggplot2::ggsave(filename, plot, width = width, height = height, dpi = dpi)
+  
+  message("Plot saved to: ", filename)
 }
