@@ -291,13 +291,14 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
     }
   }
   
-  # Set reasonable timeout
-  options(clustermq.worker.timeout = 600)  # 10 minutes
+  # Set reasonable timeout (10 mins)
+  options(clustermq.worker.timeout = 600)  
   
+  # Cap cores to 32
   if (is.null(cores)) {
-    cores = min(parallel::detectCores() - 1, 20)
+    cores = min(parallel::detectCores() - 1, 32)  
   } else {
-    cores = min(cores, parallel::detectCores(), 20) # Do not exceed available cores
+    cores = min(cores, parallel::detectCores(), 32) 
   }
   
   n_vertex = nrow(vertex)
@@ -311,7 +312,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   total_batches = length(batches)
   
-  message("🚀 PARALLEL clustermq: ", n_vertex, " vertices, ", 
+  message("🚀 ROCKET-PARALLEL clustermq: ", n_vertex, " vertices, ", 
           total_batches, " batches, ", cores, " cores")
   
   # Pre-compute connections - let C++ errors propagate naturally
@@ -327,9 +328,9 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   vertex_to_simplices = precomputed_data$vertex_index
   first_verts_z = precomputed_data$first_verts_z
   
-  # FIXED: Worker function without file writing
+  # CRITICAL FIX: Always returns results!
   worker_function = function(batch_indices, vertex_i123, vertex_Z, 
-                             connections, vertex_index, first_z) {
+                             connections, vertex_index, first_z, output_path) {
     
     batch_results = list()
     
@@ -339,6 +340,8 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
       
       # Ultra-fast lookup using pre-built index
       simplex_indices = vertex_index[[as.character(v_id)]]
+      
+      result = NULL
       
       if (!is.null(simplex_indices) && length(simplex_indices) > 0) {
         # Get valid simplices using pre-computed Z values
@@ -362,9 +365,28 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
             stringsAsFactors = FALSE
           )
           
-          batch_results[[length(batch_results) + 1]] = result
+          # Write to file ONLY for non-empty results
+          if (!is.null(output_path)) {
+            write.table(result, file = output_path,
+                        sep = "\t", append = TRUE, 
+                        col.names = FALSE, row.names = FALSE,
+                        quote = FALSE)
+          }
         }
       }
+      
+      # CRITICAL FIX: Always store in memory, even if empty
+      if (is.null(result)) {
+        # Create empty data frame for vertices with empty lower stars
+        result = data.frame(
+          id = v_id,
+          lexi_label = character(),
+          lexi_id = character(),
+          stringsAsFactors = FALSE
+        )
+      }
+      
+      batch_results[[length(batch_results) + 1]] = result
     }
     
     return(batch_results)
@@ -373,6 +395,16 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   # Prepare data for workers
   vertex_i123 = vertex$i123
   vertex_Z = vertex$Z
+  output_path = if (!is.null(output_dir)) file.path(output_dir, "lowerSTAR.txt")
+  
+  # Initialize output file
+  if (!is.null(output_path)) {
+    if (file.exists(output_path)) {
+      file.remove(output_path)
+    }
+    # Create directory if it doesn't exist
+    dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
+  }
   
   # Diagnostic message
   message("3. Starting parallel workers with scheduler: '", 
@@ -387,7 +419,8 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
       vertex_Z = vertex_Z,
       connections = all_connections,
       vertex_index = vertex_to_simplices,
-      first_z = first_verts_z
+      first_z = first_verts_z,
+      output_path = output_path
     ),
     n_jobs = min(cores, total_batches), # Don't create more jobs than batches
     template = list(),
@@ -397,45 +430,14 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   
   # Combine results
   final_results = unlist(results, recursive = FALSE)
-  final_results = final_results[!sapply(final_results, is.null)]
   
-  # FIXED: Write file ONCE at the end (not in parallel workers)
-  if (!is.null(output_dir)) {
-    output_path = file.path(output_dir, "lowerSTAR.txt")
-    message("4. Writing lowerSTAR.txt file (single-threaded)...")
-    
-    # Create directory if it doesn't exist
-    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-    
-    # Remove existing file
-    if (file.exists(output_path)) {
-      file.remove(output_path)
-    }
-    
-    # Combine all results and write once
-    if (length(final_results) > 0) {
-      all_lower_star = do.call(rbind, final_results)
-      
-      # Write with proper formatting
-      write.table(all_lower_star, file = output_path,
-                  sep = "\t", col.names = FALSE, row.names = FALSE,
-                  quote = FALSE)
-      
-      message("✅ File written successfully: ", nrow(all_lower_star), " entries")
-    } else {
-      message("⚠️  No lower star data to write")
-      # Create empty file to avoid errors
-      file.create(output_path)
-    }
-  }
-  
-  # Calculate success rate
+  # Calculate success rate (should now be 100%!)
   success_rate = round(length(final_results) / n_vertex * 100, 1)
   message("✅ PARALLEL complete: ", length(final_results), 
           " lower star sets (", success_rate, "%)")
   
-  if (success_rate < 90) {
-    warning("Low success rate (", success_rate, "%). Some vertices may not have been processed correctly.")
+  if (success_rate < 100) {
+    warning("Some vertices may not have been processed correctly. Success rate: ", success_rate, "%")
   }
   
   return(final_results)
