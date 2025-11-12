@@ -912,7 +912,16 @@ save_MORSE_2d <- function(morse_complex, filename,
   
   plot = visualize_MORSE_2d(morse_complex, ...)
   
-  ggplot2::ggsave(filename, plot, width = width, height = height, dpi = dpi)
+  # Explicitly set background and grid colors for saving
+  plot = plot + 
+    ggplot2::theme(
+      panel.background = ggplot2::element_rect(fill = "white", color = NA),
+      plot.background = ggplot2::element_rect(fill = "white", color = NA),
+      panel.grid = ggplot2::element_line(color = "grey90", linewidth = .2)
+    )
+  
+  ggplot2::ggsave(filename, plot, width = width, height = height, dpi = dpi,
+                  bg = "white")  # Critical: set background color
   
   message("Plot saved to: ", filename)
 }
