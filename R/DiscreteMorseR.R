@@ -360,10 +360,10 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
           total_batches, " batches, ", cores, " cores")
   
   # Pre-compute connections - let C++ errors propagate naturally
-  message("1 -> Pre-computing vertex connections...")
+  message("1 > Pre-computing vertex connections...")
   all_connections = get_vertTO_cpp(vertex, edge, face)
   
-  message("2 -> Building optimized vertex-simplex index...")
+  message("2 > Building optimized vertex-simplex index...")
   precomputed_data = get_PRECOMPUTEDvert_cpp(
     all_connections$lexi_id, 
     all_connections$lexi_label
@@ -451,7 +451,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   }
   
   # Diagnostic message
-  message("3 -> Starting parallel workers with scheduler: '", 
+  message("3 > Starting parallel workers with scheduler: '", 
           getOption("clustermq.scheduler"), "'")
   
   # Run with clustermq - let errors propagate naturally
