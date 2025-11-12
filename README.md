@@ -59,7 +59,7 @@ morse_complex <- DiscreteMorseR::compute_MORSE_complex(
 tictoc::toc()
 # ~3.5 minutes for typical TLS tree point clouds
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/blob/main/DMR/DMRproc.png">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRproc.png" width="800">
 
 **🚀 Performance Highlights:**
 - ✅ **226,267 vertices** processed in parallel  
@@ -87,7 +87,7 @@ p <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(p)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/blob/main/DMR/DMR01.png">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR01.png" width="800">
 
 ```r
 # Critical simplices only  
@@ -101,7 +101,7 @@ pp <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(pp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/blob/main/DMR/DMR02.png">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR02.png" width="800">
 
 ```r
 # Multi-panel: all projections
@@ -114,4 +114,4 @@ ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
 )
 print(ppp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/blob/main/DMR/DMR03.png">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR03.png" width="800">
