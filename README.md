@@ -72,7 +72,7 @@ tictoc::toc()
 - ✅ **Complete Morse analysis** in ~3.5 minutes
 - ✅ **Automatic file export** of all results
 
-# Analyze results
+## Analyze results
 ```r
 crit_types <- sapply(strsplit(morse_complex$critical, " "), length)
 table(crit_types)
@@ -120,7 +120,7 @@ print(ppp)
 ```
 <img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR03v.png" width="800">
 
-Save Visualization
+## Save Visualization
 ```r
 DiscreteMorseR::save_MORSE_2d(morse_complex,
                               filename = "D:/Gergo/DiscreteMorseR/png/DMR01v.png",
