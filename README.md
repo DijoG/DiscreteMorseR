@@ -1,6 +1,9 @@
 # DiscreteMorseR 🚀
 
-The DiscreteMorseR package delivers ultra-fast C++ backend Morse gradient field and critical simplices (0-simplices: vertices, 1-simplices: edges, 2-simplices: faces) parallel computation. 
+[![R-CMD-check](https://github.com/DijoG/DiscreteMorseR/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/DijoG/DiscreteMorseR/actions/workflows/R-CMD-check.yaml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+The DiscreteMorseR package delivers ultra-fast C++ backend Morse gradient field and critical simplices (0-simplices: vertices, 1-simplices: edges, 2-simplices: faces) parallel computation. Perfect for LiDAR data, computational topology, and Morse theory applications.
 
 # Installation
 
