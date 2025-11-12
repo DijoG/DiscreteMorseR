@@ -19,16 +19,16 @@ struct EdgeHash {
 // Ultra-fast component extractor - zero dynamic allocation in hot loops
 class FastComponentExtractor {
 private:
-    std::vector<int> queue;
-    std::vector<bool> visited;
+    std::vector<int> queue;              // declared first
+    std::vector<bool> visited;           // declared second  
     std::vector<int> component_vertices;
     std::unordered_set<Edge, EdgeHash> component_edges;
     int queue_start, queue_end;
     
 public:
     FastComponentExtractor(int n_vertices) : 
-        visited(n_vertices + 1, false),
-        queue(n_vertices),
+        queue(n_vertices),              // initialized first
+        visited(n_vertices + 1, false), // initialized second
         component_vertices() {
         component_vertices.reserve(n_vertices);
         component_edges.reserve(n_vertices * 3);
