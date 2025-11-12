@@ -122,33 +122,39 @@ print(ppp)
 
 ## Save Visualization
 ```r
-DiscreteMorseR::save_MORSE_2d(morse_complex,
-                              filename = "D:/Gergo/DiscreteMorseR/png/DMR01v.png",
-                              projection = "XZ",
-                              point_alpha = .6,
-                              point_size = .8,
-                              plot_critical = F,
-                              max_points = 30000,
-                              width = 6,
-                              height = 5)
+DiscreteMorseR::save_MORSE_2d(
+  morse_complex,
+  filename = "D:/Gergo/DiscreteMorseR/png/DMR01v.png",
+  projection = "XZ",
+  point_alpha = .6,
+  point_size = .8,
+  plot_critical = F,
+  max_points = 30000,
+  width = 6,
+  height = 5
+)
 
-DiscreteMorseR::save_MORSE_2d(morse_complex,
-                              filename = "D:/Gergo/DiscreteMorseR/png/DMR02v.png",
-                              projection = "XZ",
-                              point_alpha = .6,
-                              point_size = .8,
-                              plot_gradient = F,
-                              max_points = 30000,
-                              width = 6,
-                              height = 5)
+DiscreteMorseR::save_MORSE_2d(
+  morse_complex,
+  filename = "D:/Gergo/DiscreteMorseR/png/DMR02v.png",
+  projection = "XZ",
+  point_alpha = .6,
+  point_size = .8,
+  plot_gradient = F,
+  max_points = 30000,
+  width = 6,
+  height = 5
+)
 
-DiscreteMorseR::save_MORSE_2d(morse_complex,
-                              filename = "D:/Gergo/DiscreteMorseR/png/DMR03v.png",
-                              point_alpha = .5,
-                              point_size = .8,
-                              plot_gradient = F,
-                              max_points = 30000,
-                              panel_2d = T,
-                              width = 6,
-                              height = 5)
+DiscreteMorseR::save_MORSE_2d(
+  morse_complex,
+  filename = "D:/Gergo/DiscreteMorseR/png/DMR03v.png",
+  point_alpha = .5,
+  point_size = .8,
+  plot_gradient = F,
+  max_points = 30000,
+  panel_2d = T,
+  width = 6,
+  height = 5
+)
 ```
