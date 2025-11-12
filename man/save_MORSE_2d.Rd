@@ -4,7 +4,15 @@
 \alias{save_MORSE_2d}
 \title{Save 2D visualization to file}
 \usage{
-save_MORSE_2d(morse_complex, filename, width = 10, height = 8, dpi = 300, ...)
+save_MORSE_2d(
+  morse_complex,
+  filename,
+  width = 10,
+  height = 8,
+  dpi = 300,
+  panel_2d = FALSE,
+  ...
+)
 }
 \arguments{
 \item{morse_complex}{Output from compute_MORSE_complex()}
@@ -17,7 +25,9 @@ save_MORSE_2d(morse_complex, filename, width = 10, height = 8, dpi = 300, ...)
 
 \item{dpi}{Resolution}
 
-\item{...}{Additional arguments to visualize_MORSE_2d()}
+\item{panel_2d}{If TRUE, saves multi-panel plot. If FALSE, saves single projection plot.}
+
+\item{...}{Additional arguments to visualize_MORSE_2d() or visualize_MORSE_2d_panel()}
 }
 \description{
 Save 2D visualization to file

@@ -901,23 +901,40 @@ visualize_MORSE_2d_panel <- function(morse_complex,
 #' @param width Plot width in inches
 #' @param height Plot height in inches
 #' @param dpi Resolution
-#' @param ... Additional arguments to visualize_MORSE_2d()
+#' @param panel_2d If TRUE, saves multi-panel plot. If FALSE, saves single projection plot.
+#' @param ... Additional arguments to visualize_MORSE_2d() or visualize_MORSE_2d_panel()
 #' @export
 save_MORSE_2d <- function(morse_complex, filename, 
-                          width = 10, height = 8, dpi = 300, ...) {
+                          width = 10, height = 8, dpi = 300, 
+                          panel_2d = FALSE, ...) {
   
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package 'ggplot2' required.")
   }
   
-  plot = visualize_MORSE_2d(morse_complex, ...)
+  if (panel_2d) {
+    # Save multi-panel plot
+    if (!requireNamespace("patchwork", quietly = TRUE)) {
+      stop("Package 'patchwork' required for panel plots.")
+    }
+    
+    plot = visualize_MORSE_2d_panel(morse_complex, ...)
+    
+    # Adjust default size for panel plots (wider)
+    if (missing(width)) width <- 12
+    if (missing(height)) height <- 10
+    
+  } else {
+    # Save single projection plot
+    plot = visualize_MORSE_2d(morse_complex, ...)
+  }
   
-  # Explicitly set background and grid colors for saving
+  # FIX: Explicitly set background and grid colors for saving
   plot = plot + 
     ggplot2::theme(
       panel.background = ggplot2::element_rect(fill = "white", color = NA),
       plot.background = ggplot2::element_rect(fill = "white", color = NA),
-      panel.grid = ggplot2::element_line(color = "grey90", linewidth = .2)
+      panel.grid = ggplot2::element_line(color = "grey90")
     )
   
   ggplot2::ggsave(filename, plot, width = width, height = height, dpi = dpi,
