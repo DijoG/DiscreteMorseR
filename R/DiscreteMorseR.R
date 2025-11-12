@@ -112,7 +112,7 @@ get_CCMESH = function(vertices, faces, select_largest = TRUE) {
     colnames(mesh$faces) = c("i1", "i2", "i3")
     colnames(mesh$edges) = c("i1", "i2")
     
-    message("Optimized mesh: ", nrow(mesh$vertices), " vertices, ",
+    message("Largest mesh: ", nrow(mesh$vertices), " vertices, ",
             nrow(mesh$faces), " faces, ", nrow(mesh$edges), " edges")
     
     return(mesh)
@@ -121,7 +121,7 @@ get_CCMESH = function(vertices, faces, select_largest = TRUE) {
 
 #' Extract and process simplices from mesh
 #'
-#' @param mesh Mesh object from get_MESH()
+#' @param mesh Mesh object from get_CCMESH()
 #' @param txt_dirout Directory for output files (optional)
 #' @return List of processed simplices
 #' @keywords internal
@@ -360,10 +360,10 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
           total_batches, " batches, ", cores, " cores")
   
   # Pre-compute connections - let C++ errors propagate naturally
-  message("1. Pre-computing vertex connections...")
+  message("1 -> Pre-computing vertex connections...")
   all_connections = get_vertTO_cpp(vertex, edge, face)
   
-  message("2. Building optimized vertex-simplex index...")
+  message("2 -> Building optimized vertex-simplex index...")
   precomputed_data = get_PRECOMPUTEDvert_cpp(
     all_connections$lexi_id, 
     all_connections$lexi_label
@@ -451,7 +451,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
   }
   
   # Diagnostic message
-  message("3. Starting parallel workers with scheduler: '", 
+  message("3 -> Starting parallel workers with scheduler: '", 
           getOption("clustermq.scheduler"), "'")
   
   # Run with clustermq - let errors propagate naturally
@@ -510,10 +510,10 @@ optimal_BATCH_size = function(n_vertex, cores) {
 compute_MORSE_complex = function(mesh, output_dir = NULL, parallel = TRUE, 
                                   cores = 4, batch_size = NULL) {
   
-  message("Step 1: Computing simplices")
+  message("___ Step 1: Computing simplices")
   simplices = get_SIMPLICES(mesh, output_dir)
   
-  message("Step 2: Computing lower star filtration")
+  message("___ Step 2: Computing lower star filtration")
   if (parallel) {
     lower_star = compute_lowerSTAR_parallel(
       simplices$vertices, simplices$edges, simplices$faces, 
@@ -523,12 +523,12 @@ compute_MORSE_complex = function(mesh, output_dir = NULL, parallel = TRUE,
     lower_star = get_lowerSTAR(simplices$vertices, simplices$edges, simplices$faces, output_dir)
   }
   
-  message("Step 3: Processing Morse pairings")
+  message("___ Step 3: Processing Morse pairings")
   morse_complex = proc_lowerSTAR(lower_star, simplices$vertices)
   
   # Write final results to files if output_dir provided
   if (!is.null(output_dir)) {
-    message("Step 4: Writing final results to files")
+    message("___ Step 4: Writing final results to files")
     
     # Write vector field (one pair per line)
     writeLines(morse_complex$VE_, file.path(output_dir, "vector_field.txt"))
@@ -544,7 +544,7 @@ compute_MORSE_complex = function(mesh, output_dir = NULL, parallel = TRUE,
     write.table(simplices$faces, file.path(output_dir, "faces.txt"), 
                 sep = "\t", row.names = FALSE, quote = FALSE)
     
-    message("Final results written to:")
+    message("___ Final results written to:")
     message("  - ", file.path(output_dir, "vector_field.txt"))
     message("  - ", file.path(output_dir, "critical_simplices.txt"))
     message("  - ", file.path(output_dir, "vertices.txt"))
@@ -553,7 +553,7 @@ compute_MORSE_complex = function(mesh, output_dir = NULL, parallel = TRUE,
     message("  - ", file.path(output_dir, "lowerSTAR.txt"))
   }
   
-  message("Discrete Morse Theory analysis complete!")
+  message("___ Discrete Morse Theory analysis complete!")
   return(list(
     vector_field = morse_complex$VE_,    # Gradient vector field
     critical = morse_complex$CR_,        # Critical simplices

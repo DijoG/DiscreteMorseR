@@ -7,7 +7,7 @@
 get_SIMPLICES(mesh, txt_dirout = "")
 }
 \arguments{
-\item{mesh}{Mesh object from get_MESH()}
+\item{mesh}{Mesh object from get_CCMESH()}
 
 \item{txt_dirout}{Directory for output files (optional)}
 }
