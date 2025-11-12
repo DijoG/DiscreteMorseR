@@ -63,7 +63,7 @@ morse_complex <- DiscreteMorseR::compute_MORSE_complex(
 tictoc::toc()
 # ~3.5 minutes for typical TLS tree point clouds
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRproc.png" width="650">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRprocv.png" width="750">
 
 **🚀 Performance Highlights:**
 - ✅ **226,267 vertices** processed in parallel  
@@ -91,7 +91,7 @@ p <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(p)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR01.png" width="650">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR01v.png" width="800">
 
 ```r
 # Critical simplices only  
@@ -105,7 +105,7 @@ pp <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(pp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR02.png" width="650">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR02v.png" width="800">
 
 ```r
 # Multi-panel: all projections
@@ -118,4 +118,37 @@ ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
 )
 print(ppp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR03.png" width="650">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR03v.png" width="800">
+
+Save Visualization
+```r
+DiscreteMorseR::save_MORSE_2d(morse_complex,
+                              filename = "D:/Gergo/DiscreteMorseR/png/DMR01v.png",
+                              projection = "XZ",
+                              point_alpha = .6,
+                              point_size = .8,
+                              plot_critical = F,
+                              max_points = 30000,
+                              width = 6,
+                              height = 5)
+
+DiscreteMorseR::save_MORSE_2d(morse_complex,
+                              filename = "D:/Gergo/DiscreteMorseR/png/DMR02v.png",
+                              projection = "XZ",
+                              point_alpha = .6,
+                              point_size = .8,
+                              plot_gradient = F,
+                              max_points = 30000,
+                              width = 6,
+                              height = 5)
+
+DiscreteMorseR::save_MORSE_2d(morse_complex,
+                              filename = "D:/Gergo/DiscreteMorseR/png/DMR03v.png",
+                              point_alpha = .5,
+                              point_size = .8,
+                              plot_gradient = F,
+                              max_points = 30000,
+                              panel_2d = T,
+                              width = 6,
+                              height = 5)
+```
