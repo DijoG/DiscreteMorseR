@@ -42,12 +42,14 @@ get_lexIDLAB = function(df) {
   return(result)
 }
 
-#' Ultra-fast mesh preparation 
+#' Ultra-fast mesh preparation with connected components
 #' @param vertices Vertex data from alphahull 
 #' @param faces Face data from alphahull
-#' @return Mesh data expected by compute_MORSE_complex()
+#' @param select_largest If TRUE, returns only largest connected component (default: TRUE).
+#'                      If FALSE, returns list of all connected components.
+#' @return Single mesh (if select_largest=TRUE) or list of meshes (if select_largest=FALSE)
 #' @export
-get_MESH = function(vertices, faces) {
+get_CCMESH = function(vertices, faces, select_largest = TRUE) {
   
   vertices = as.matrix(vertices)
   faces = as.matrix(faces)
@@ -58,21 +60,63 @@ get_MESH = function(vertices, faces) {
   if(ncol(vertices) == 4) vertices = vertices[, 1:3]
   if(min(faces) == 0) faces = faces + 1
   
-  result = get_MESH_cpp(vertices, faces)
+  # Input validation
+  if (nrow(vertices) == 0) stop("Vertex matrix is empty")
+  if (nrow(faces) == 0) stop("Face matrix is empty")
   
-  mesh = list(
-    vertices = as.matrix(result$vertices),
-    faces = as.matrix(result$faces),
-    edges = as.data.frame(result$edges) 
-  )
+  message("Input: ", nrow(vertices), " vertices, ", nrow(faces), " faces")
   
-  colnames(mesh$vertices) = c("X", "Y", "Z")
-  colnames(mesh$faces) = c("i1", "i2", "i3")
+  # Call C++ function
+  result = get_CCMESH_cpp(vertices, faces, select_largest)
   
-  message("Minimal mesh: ", nrow(mesh$vertices), " vertices, ",
-          nrow(mesh$faces), " faces, ", nrow(mesh$edges), " edges")
-  
-  return(mesh)
+  # Handle different return types
+  if ("components" %in% names(result)) {
+    # Multiple components returned (select_largest = FALSE)
+    components = result$components
+    n_components = result$n_components
+    
+    # Convert each component to proper mesh format
+    meshes = lapply(components, function(comp) {
+      mesh = list(
+        vertices = as.matrix(comp$vertices),
+        faces = as.matrix(comp$faces),
+        edges = as.data.frame(comp$edges)
+      )
+      
+      # Set column names
+      colnames(mesh$vertices) = c("X", "Y", "Z")
+      colnames(mesh$faces) = c("i1", "i2", "i3")
+      colnames(mesh$edges) = c("i1", "i2")
+      
+      return(mesh)
+    })
+    
+    # Add component info as attributes
+    attr(meshes, "n_components") = n_components
+    attr(meshes, "component_sizes") = sapply(meshes, function(m) nrow(m$faces))
+    
+    message("Returning ", n_components, " connected components")
+    
+    return(meshes)
+    
+  } else {
+    # Single mesh returned (select_largest = TRUE)
+    mesh = list(
+      vertices = as.matrix(result$vertices),
+      faces = as.matrix(result$faces),
+      edges = as.data.frame(result$edges)
+    )
+    
+    # Set column names
+    colnames(mesh$vertices) = c("X", "Y", "Z")
+    colnames(mesh$faces) = c("i1", "i2", "i3")
+    colnames(mesh$edges) = c("i1", "i2")
+    
+    message("Optimized mesh: ", nrow(mesh$vertices), " vertices, ",
+            nrow(mesh$faces), " faces, ", nrow(mesh$edges), " edges")
+    
+    return(mesh)
+  }
 }
 
 #' Extract and process simplices from mesh
@@ -526,6 +570,7 @@ compute_MORSE_complex = function(mesh, output_dir = NULL, parallel = TRUE,
 get_simplexCENTER <- function(simplex, vertices_matrix) {
   get_simplexCENTER_cpp(simplex, vertices_matrix)
 }
+
 #' Fast Morse complex visualization using get_simplexCENTER()
 #'
 #' @param morse_complex Output from compute_MORSE_complex()
@@ -656,7 +701,8 @@ visualize_MORSE_2d <- function(morse_complex,
           if (!any(is.na(c(x_coord, y_coord)))) {
             edge_list[[valid_count + 1]] = data.frame(
               x = x_coord, y = y_coord, 
-              type = "edge"
+              type = "edge",
+              shape = "edge"  # NEW: shape identifier
             )
             valid_count = valid_count + 1
           }
@@ -689,7 +735,8 @@ visualize_MORSE_2d <- function(morse_complex,
           if (!any(is.na(c(x_coord, y_coord)))) {
             face_list[[valid_count + 1]] = data.frame(
               x = x_coord, y = y_coord, 
-              type = "face"
+              type = "face",
+              shape = "face"  # NEW: shape identifier
             )
             valid_count = valid_count + 1
           }
@@ -722,7 +769,8 @@ visualize_MORSE_2d <- function(morse_complex,
           if (!any(is.na(c(x_coord, y_coord)))) {
             vertex_list[[valid_count + 1]] = data.frame(
               x = x_coord, y = y_coord, 
-              type = "vertex"
+              type = "vertex",
+              shape = "vertex"  # NEW: shape identifier
             )
             valid_count = valid_count + 1
           }
@@ -756,12 +804,14 @@ visualize_MORSE_2d <- function(morse_complex,
     )
   }
   
-  # Add critical points in reverse order (vertices on top)
+  # Add critical points in reverse order (vertices on top) with different shapes
   if (!is.null(plot_data$edges) && nrow(plot_data$edges) > 0) {
     p = p + ggplot2::geom_point(
       data = plot_data$edges,
       ggplot2::aes(x = x, y = y, color = type),
-      alpha = point_alpha, size = point_size
+      alpha = point_alpha, 
+      size = point_size,
+      shape = 3  # '+' shape for edges
     )
   }
   
@@ -769,7 +819,9 @@ visualize_MORSE_2d <- function(morse_complex,
     p = p + ggplot2::geom_point(
       data = plot_data$faces,
       ggplot2::aes(x = x, y = y, color = type),
-      alpha = point_alpha, size = point_size
+      alpha = point_alpha, 
+      size = point_size,
+      shape = 18  # Diamond shape for faces
     )
   }
   
@@ -777,8 +829,9 @@ visualize_MORSE_2d <- function(morse_complex,
     p = p + ggplot2::geom_point(
       data = plot_data$vertices,
       ggplot2::aes(x = x, y = y, color = type),
-      alpha = point_alpha, size = point_size * 1.5,  # Larger for emphasis
-      shape = 16  # Solid circle
+      alpha = point_alpha, 
+      size = point_size * 1.5,  # Larger for emphasis
+      shape = 16  # Solid circle for vertices
     )
   }
   
@@ -794,7 +847,7 @@ visualize_MORSE_2d <- function(morse_complex,
     labels = c("Vertices", "Edges", "Faces")
   ) 
   
-  message("Ultra-fast 2D visualization complete! Critical vertices on top.")
+  message("Ultra-fast 2D visualization complete!")
   return(p)
 }
 
