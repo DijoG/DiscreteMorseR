@@ -91,7 +91,7 @@ p <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(p)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR01v.png" width="700">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR01v.png" width="800">
 
 ```r
 # Critical simplices only  
@@ -105,7 +105,7 @@ pp <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(pp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR02v.png" width="700">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR02v.png" width="800">
 
 ```r
 # Multi-panel: all projections
@@ -118,7 +118,7 @@ ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
 )
 print(ppp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR03v.png" width="700" height="700">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR03v.png" width="800" height="800">
 
 ## Save Visualization
 ```r
