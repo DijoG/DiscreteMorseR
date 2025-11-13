@@ -155,6 +155,6 @@ DiscreteMorseR::save_MORSE_2d(
   max_points = 30000,
   panel_2d = T,
   width = 6,
-  height = 5
+  height = 6
 )
 ```
