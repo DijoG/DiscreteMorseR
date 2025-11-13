@@ -63,7 +63,7 @@ morse_complex <- DiscreteMorseR::compute_MORSE_complex(
 tictoc::toc()
 # ~3.5 minutes for typical TLS tree point clouds
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRprocv.png" width="750">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRprocv.png" width="800">
 
 **🚀 Performance Highlights:**
 - ✅ **226,267 vertices** processed in parallel  
