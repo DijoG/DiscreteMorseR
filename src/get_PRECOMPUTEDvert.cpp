@@ -6,35 +6,6 @@
 
 using namespace Rcpp;
 
-// Fast string view approach
-class StringView {
-private:
-  const char* start_;
-  size_t length_;
-public:
-  StringView(const char* start, size_t length) : start_(start), length_(length) {}
-  
-  std::string str() const { return std::string(start_, length_); }
-  
-  // For unordered_map compatibility
-  bool operator==(const StringView& other) const {
-    return length_ == other.length_ && 
-           std::strncmp(start_, other.start_, length_) == 0;
-  }
-};
-
-// Hash for StringView
-struct StringViewHash {
-  std::size_t operator()(const StringView& sv) const {
-    // Simple hash - for better performance consider FNV-1a
-    std::size_t h = 0;
-    for (size_t i = 0; i < sv.str().length(); ++i) {
-      h = h * 31 + sv.str()[i];
-    }
-    return h;
-  }
-};
-
 // [[Rcpp::export]]
 List get_PRECOMPUTEDvert_cpp(CharacterVector lexi_ids, CharacterVector lexi_labels) {
   int n = lexi_ids.size();
@@ -50,22 +21,19 @@ List get_PRECOMPUTEDvert_cpp(CharacterVector lexi_ids, CharacterVector lexi_labe
     const char* label = lexi_labels[i];
     first_verts[i] = std::atof(label); // atof automatically stops at space
     
-    // MAX SPEED: Manual tokenization without string copies where possible
-    const char* simplex = lexi_ids[i];
-    const char* token_start = simplex;
-    const char* p = simplex;
+    // MAX SPEED: Manual tokenization without string copies
+    std::string simplex = as<std::string>(lexi_ids[i]);
+    size_t start = 0, end = 0;
     
-    while (true) {
-      if (*p == ' ' || *p == '\0') {
-        if (token_start != p) { // Non-empty token
-          // Create string only when necessary
-          std::string vertex_id(token_start, p - token_start);
-          vertex_map[vertex_id].push_back(i + 1);
-        }
-        if (*p == '\0') break;
-        token_start = p + 1;
-      }
-      p++;
+    while ((end = simplex.find(' ', start)) != std::string::npos) {
+      std::string vertex_id = simplex.substr(start, end - start);
+      vertex_map[vertex_id].push_back(i + 1);
+      start = end + 1;
+    }
+    // Do not forget the last token
+    if (start < simplex.length()) {
+      std::string vertex_id = simplex.substr(start);
+      vertex_map[vertex_id].push_back(i + 1);
     }
   }
   

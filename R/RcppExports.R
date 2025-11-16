@@ -17,10 +17,6 @@ get_simplexCENTER_cpp <- function(simplex, vertices) {
     .Call(`_DiscreteMorseR_get_simplexCENTER_cpp`, simplex, vertices)
 }
 
-get_vOUT <- function(v, ve_e_p) {
-    .Call(`_DiscreteMorseR_get_vOUT`, v, ve_e_p)
-}
-
 get_vertTO_cpp <- function(vertex, edge, face) {
     .Call(`_DiscreteMorseR_get_vertTO_cpp`, vertex, edge, face)
 }
