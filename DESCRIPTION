@@ -8,6 +8,6 @@ Maintainer: Gergo Dioszegi <dijogergo@gmail.com>
 Description: Computing and visualizing Morse gradient and critical simplices.
 License: MIT 
 Imports: Rcpp (>= 1.0.10)
-LinkingTo: Rcpp, RcppArmadillo
+LinkingTo: Rcpp
 Encoding: UTF-8
 RoxygenNote: 7.2.3
