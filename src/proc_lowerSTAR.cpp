@@ -2,154 +2,76 @@
 #include <vector>
 #include <string>
 #include <unordered_set>
-#include <unordered_map>
 #include <algorithm>
-#include <sstream>
 
 using namespace Rcpp;
 
-// Pre-process simplex data into efficient structures
-struct SimplexInfo {
-    int dimension;
-    std::vector<int> vertices;
-    std::string id;
-};
-
-SimplexInfo parseSimplex(const std::string& simplex_id) {
-    SimplexInfo info;
-    info.id = simplex_id;
-    
-    std::istringstream iss(simplex_id);
-    std::string token;
-    while (iss >> token) {
-        info.vertices.push_back(std::stoi(token));
-    }
-    info.dimension = info.vertices.size() - 1;
-    
-    // Sort vertices for consistent comparison
-    std::sort(info.vertices.begin(), info.vertices.end());
-    
-    return info;
-}
-
-// Fast face/coface relationship checking
-bool isFaceOf(const std::vector<int>& face, const std::vector<int>& coface) {
-    // Check if all vertices of face are in coface (both are sorted)
-    auto face_it = face.begin();
-    auto coface_it = coface.begin();
-    
-    while (face_it != face.end() && coface_it != coface.end()) {
-        if (*face_it < *coface_it) {
-            return false; // Face vertex not found in coface
-        } else if (*face_it > *coface_it) {
-            ++coface_it;
-        } else {
-            ++face_it;
-            ++coface_it;
-        }
-    }
-    
-    return face_it == face.end(); // All face vertices found
-}
-
 // [[Rcpp::export]]
 List proc_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex) {
-    int n = list_lowerSTAR.size();
-    std::unordered_set<std::string> VE_set, CR_set;
-    
-    IntegerVector vertex_ids = vertex["i123"];
-    
-    for (int i = 0; i < n; i++) {
-        DataFrame df = as<DataFrame>(list_lowerSTAR[i]);
-        if (df.nrows() == 0) {
-            CR_set.insert(std::to_string(vertex_ids[i]));
-            continue;
-        }
-        
-        CharacterVector lexi_id = df["lexi_id"];
-        
-        // Parse all simplices upfront
-        std::vector<SimplexInfo> simplices;
-        simplices.reserve(lexi_id.size());
-        
-        for (int j = 0; j < lexi_id.size(); j++) {
-            simplices.push_back(parseSimplex(as<std::string>(lexi_id[j])));
-        }
-        
-        // First pairing: vertex with first simplex
-        if (!simplices.empty()) {
-            VE_set.insert(std::to_string(vertex_ids[i]) + ":" + simplices[0].id);
-        }
-        
-        if (simplices.size() <= 1) continue;
-        
-        // Separate faces (dimension 1) and cofaces (dimension 2)
-        std::vector<SimplexInfo> faces, cofaces;
-        for (size_t j = 1; j < simplices.size(); j++) {
-            if (simplices[j].dimension == 1) {
-                faces.push_back(simplices[j]);
-            } else {
-                cofaces.push_back(simplices[j]);
-            }
-        }
-        
-        if (faces.empty()) continue;
-        
-        // Build face-coface adjacency for O(1) lookups
-        std::unordered_map<std::string, std::vector<std::string>> face_to_cofaces;
-        for (const auto& face : faces) {
-            for (const auto& coface : cofaces) {
-                if (isFaceOf(face.vertices, coface.vertices)) {
-                    face_to_cofaces[face.id].push_back(coface.id);
-                }
-            }
-        }
-        
-        // Greedy Morse pairing
-        std::unordered_set<std::string> paired_cofaces;
-        std::vector<std::string> VE_local, CR_local;
-        
-        for (const auto& face : faces) {
-            auto coface_it = face_to_cofaces.find(face.id);
-            if (coface_it != face_to_cofaces.end() && !coface_it->second.empty()) {
-                // Find first unpaired coface
-                for (const auto& coface_id : coface_it->second) {
-                    if (paired_cofaces.find(coface_id) == paired_cofaces.end()) {
-                        VE_local.push_back(face.id + ":" + coface_id);
-                        paired_cofaces.insert(coface_id);
-                        break;
-                    }
-                }
-            }
-            
-            // If no coface was paired with this face, it's critical
-            bool face_paired = false;
-            for (const auto& pair : VE_local) {
-                if (pair.find(face.id + ":") == 0) {
-                    face_paired = true;
-                    break;
-                }
-            }
-            if (!face_paired) {
-                CR_local.push_back(face.id);
-            }
-        }
-        
-        // Add unpaired cofaces to critical list
-        for (const auto& coface : cofaces) {
-            if (paired_cofaces.find(coface.id) == paired_cofaces.end()) {
-                CR_local.push_back(coface.id);
-            }
-        }
-        
-        // Update global sets
-        for (const auto& pair : VE_local) VE_set.insert(pair);
-        for (const auto& crit : CR_local) CR_set.insert(crit);
+  int n = list_lowerSTAR.size();
+  std::unordered_set<std::string> VE_set, CR_set;
+  
+  IntegerVector vertex_ids = vertex["i123"];
+  
+  for (int i = 0; i < n; i++) {
+    DataFrame df = as<DataFrame>(list_lowerSTAR[i]);
+    if (df.nrows() == 0) {
+      CR_set.insert(std::to_string(vertex_ids[i]));
+      continue;
     }
     
-    // Convert to output
-    std::vector<std::string> VE_final(VE_set.begin(), VE_set.end());
-    std::vector<std::string> CR_final(CR_set.begin(), CR_set.end());
+    CharacterVector lexi_id = df["lexi_id"];
+    std::string first_id = as<std::string>(lexi_id[0]);
+    VE_set.insert(std::to_string(vertex_ids[i]) + ":" + first_id);
     
-    return List::create(_["VE_"] = VE_final, _["CR_"] = CR_final);
+    std::vector<std::string> faceV, cofaceV;
+    for (int j = 1; j < lexi_id.size(); j++) {
+      std::string current = as<std::string>(lexi_id[j]);
+      (std::count(current.begin(), current.end(), ' ') == 1 ? faceV : cofaceV).push_back(current);
+    }
+    
+    if (faceV.empty()) continue;
+    
+    std::vector<std::string> PAIR;
+    std::unordered_set<std::string> FACEC;
+    std::vector<std::string> CRIT;
+    
+    for (size_t ii = 0; ii < faceV.size(); ii++) {
+      const std::string& face = faceV[ii];
+      std::vector<std::string> matches;
+      for (const auto& coface : cofaceV) {
+        if (coface.find(face) != std::string::npos) matches.push_back(coface);
+      }
+      
+      if (ii > 0) {
+        for (const auto& p : PAIR) {
+          if (p.find(face) != std::string::npos && !matches.empty()) {
+            CRIT.push_back(matches[0]);
+            goto next_face;
+          }
+        }
+      }
+      
+      if (!matches.empty()) {
+        std::string coface_used = matches[0];
+        PAIR.push_back(face + ":" + coface_used);
+        FACEC.insert(face);
+        cofaceV.erase(std::remove(cofaceV.begin(), cofaceV.end(), coface_used), cofaceV.end());
+      } else {
+        CRIT.push_back(face);
+      }
+      next_face:;
+    }
+    
+    for (const auto& c : cofaceV) CRIT.push_back(c);
+    for (const auto& f : faceV) if (!FACEC.count(f)) CRIT.push_back(f);
+    for (const auto& p : PAIR) VE_set.insert(p);
+    for (const auto& c : CRIT) CR_set.insert(c);
+  }
+  
+  std::vector<std::string> VE_final(VE_set.begin(), VE_set.end());
+  std::vector<std::string> CR_final(CR_set.begin(), CR_set.end());
+  std::sort(CR_final.begin(), CR_final.end());
+  
+  return List::create(_["VE_"] = VE_final, _["CR_"] = CR_final);
 }
