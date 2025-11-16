@@ -1,6 +1,6 @@
-#include <RcppArmadillo.h>
-// [[Rcpp::depends(RcppArmadillo)]]
-
+#include <Rcpp.h>
+#include <vector>
+#include <sstream>
 using namespace Rcpp;
 
 // [[Rcpp::export]]
@@ -14,23 +14,22 @@ NumericVector get_simplexCENTER_cpp(CharacterVector simplex, NumericMatrix verti
     vert_ids.push_back(std::stoi(token));
   }
   
-  // Convert to Armadillo matrix for fast operations
-  arma::mat vert_mat(vertices.begin(), vertices.nrow(), vertices.ncol(), false);
-  
-  arma::vec center = arma::zeros<arma::vec>(3);
+  double sum_x = 0, sum_y = 0, sum_z = 0;
   int count = 0;
   
   for (int id : vert_ids) {
+    // Assuming vertices are 1-indexed in R, 0-indexed in C++
     int idx = id - 1;
     if (idx >= 0 && idx < vertices.nrow()) {
-      center += vert_mat.row(idx).t();  // Fast row access and addition
+      sum_x += vertices(idx, 0);
+      sum_y += vertices(idx, 1);
+      sum_z += vertices(idx, 2);
       count++;
     }
   }
   
   if (count > 0) {
-    center /= count;  // Vectorized division
-    return NumericVector::create(center(0), center(1), center(2));
+    return NumericVector::create(sum_x/count, sum_y/count, sum_z/count);
   } else {
     return NumericVector::create(NA_REAL, NA_REAL, NA_REAL);
   }
