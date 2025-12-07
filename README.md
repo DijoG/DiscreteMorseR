@@ -47,7 +47,7 @@ lasdf <-
 a <- AlphaHull3D::ahull3d(lasdf, alpha = .1) 
 
 # Extract largest connected component mesh
-mesh <- DiscreteMorseR::get_MESH(a)
+mesh <- DiscreteMorseR::get_CCMESH(a)
 ```
 ## Morse Complex Analysis
 

@@ -13,14 +13,14 @@ NULL
 #' @param k Number of decimal places
 #' @return Formatted character vector
 #' @keywords internal
-add_DECIMAL = function(x, k) format(round(x, k), nsmall = k)
+add_DECIMAL <- function(x, k) format(round(x, k), nsmall = k)
 
 #' Compute lexicographically sorted simplex labels
 #'
 #' @param df Data frame with label and idlabel columns
 #' @return Data table with lexicographically sorted labels
 #' @keywords internal
-get_lexIDLAB = function(df) {
+get_lexIDLAB <- function(df) {
   # Trim labels
   LA = stringr::str_trim(df$label, "both")
   IDLA = stringr::str_trim(df$idlabel, "both")
@@ -48,7 +48,7 @@ get_lexIDLAB = function(df) {
 #'                       If FALSE, returns list of all connected components
 #' @return Single mesh (if select_largest=TRUE) or list of meshes (if select_largest=FALSE)
 #' @export
-get_CCMESH = function(alphahull, select_largest = TRUE) {
+get_CCMESH <- function(alphahull, select_largest = TRUE) {
   
   vertices = as.matrix(alphahull$vb)
   faces = as.matrix(alphahull$it)
@@ -124,7 +124,7 @@ get_CCMESH = function(alphahull, select_largest = TRUE) {
 #' @param txt_dirout Directory for output files (optional)
 #' @return List of processed simplices
 #' @keywords internal
-get_SIMPLICES = function(mesh, txt_dirout = "") {
+get_SIMPLICES <- function(mesh, txt_dirout = "") {
   
   # Vertices (0-simplex) - Safe for parallel
   mesh_ver = as.data.frame(mesh$vertices)
@@ -204,7 +204,7 @@ get_SIMPLICES = function(mesh, txt_dirout = "") {
 #' @param cores Number of cores (for consistency)
 #' @return List of lower star sets
 #' @keywords internal
-get_lowerSTAR = function(vertex, edge, face, dirout = NULL, cores = 1) {
+get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
   
   # Pre-compute connections
   all_connections = get_vertTO_cpp(vertex, edge, face)
@@ -294,7 +294,7 @@ proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
 #' @param batch_size Number of vertices per batch
 #' @return Combined lower star results
 #' @export
-compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL, 
+compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
                                       cores = NULL, batch_size = NULL) {
   
   if (!requireNamespace("clustermq", quietly = TRUE)) {
@@ -487,7 +487,7 @@ compute_lowerSTAR_parallel = function(vertex, edge, face, output_dir = NULL,
 }
 
 #' @keywords internal
-optimal_BATCH_size = function(n_vertex, cores) {
+optimal_BATCH_size <- function(n_vertex, cores) {
   if (n_vertex > 200000) return(10000)
   if (n_vertex > 100000) return(5000)
   return(2000)
@@ -506,7 +506,7 @@ optimal_BATCH_size = function(n_vertex, cores) {
 #' @param batch_size Number of vertices per batch in parallel processing
 #' @return List with Morse vector field and critical simplices
 #' @export
-compute_MORSE_complex = function(mesh, output_dir = NULL, parallel = TRUE, 
+compute_MORSE_complex <- function(mesh, output_dir = NULL, parallel = TRUE, 
                                   cores = 4, batch_size = NULL) {
   
   message("___ Step 1: Computing simplices")
