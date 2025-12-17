@@ -10,6 +10,7 @@ The DiscreteMorseR package delivers ultra-fast C++ backend Morse gradient field 
 
 ```r
 devtools::install_github("DijoG/DiscreteMorseR")
+devtools::install_github("DijoG/ahull3D")
 library(DiscreteMorseR)
 ```
 Quick test of C++ functions
@@ -22,7 +23,6 @@ DiscreteMorseR::add_DECIMAL(215.2585589, 3)
   - `lidR` - LiDAR data processing
   - `tidyverse` - Data manipulation
   - `data.table` - Fast data operations
-  - `AlphaHull3D` - Alpha hull generation
   - `clustermq` - Parallelization backend 
 
 # Usage
@@ -44,7 +44,7 @@ lasdf <-
   as.matrix()
 
 # Generate alpha hull
-a <- AlphaHull3D::ahull3d(lasdf, alpha = .1) 
+a <- ahull3D::ahull3D(lasdf, alpha = .1) 
 
 # Extract largest connected component mesh
 mesh <- DiscreteMorseR::get_CCMESH(a)
