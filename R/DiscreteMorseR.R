@@ -151,7 +151,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
   # Vertices (0-simplex) - Safe for parallel
   mesh_ver = as.data.frame(mesh$vertices)
   colnames(mesh_ver) = c("X", "Y", "Z")
-  mesh_ver$i123 = 1:nrow(mesh_ver)
+  mesh_ver$i123 = attr(mesh, "input_truth")
   mesh_ver = mesh_ver[!duplicated(mesh_ver), ]
   mesh_ver$Z = as.character(mesh_ver$Z)
   
