@@ -25,15 +25,11 @@ get_vertTO_cpp <- function(vertex, edge, face) {
     .Call(`_DiscreteMorseR_get_vertTO_cpp`, vertex, edge, face)
 }
 
-process_lowerSTAR_cpp <- function(list_lowerSTAR, vertex) {
-    .Call(`_DiscreteMorseR_process_lowerSTAR_cpp`, list_lowerSTAR, vertex)
-}
-
 proc_lowerSTAR_cpp <- function(list_lowerSTAR, vertex) {
     .Call(`_DiscreteMorseR_proc_lowerSTAR_cpp`, list_lowerSTAR, vertex)
 }
 
-process_lowerSTAR_forman_cpp <- function(list_lowerSTAR, vertex_ids) {
-    .Call(`_DiscreteMorseR_process_lowerSTAR_forman_cpp`, list_lowerSTAR, vertex_ids)
+compute_MORSE_complex_cpp <- function(list_lowerSTAR, vertex) {
+    .Call(`_DiscreteMorseR_compute_MORSE_complex_cpp`, list_lowerSTAR, vertex)
 }
 

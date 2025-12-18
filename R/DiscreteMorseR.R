@@ -139,56 +139,6 @@ get_CCMESH <- function(alphahull, select_largest = TRUE) {
   }
 }
 
-#' Ultra-fast simplex extraction (C++ backend)
-#'
-#' @param mesh Mesh object from get_CCMESH()
-#' @param txt_dirout Directory for output files (optional)
-#' @return List of processed simplices
-#' @keywords internal
-get_SIMPLICEScpp <- function(mesh, txt_dirout = "") {
-  
-  # Input validation
-  if (is.null(mesh) || is.null(mesh$vertices) || is.null(mesh$faces) || is.null(mesh$edges)) {
-    stop("Invalid mesh structure")
-  }
-  
-  # Get input_truth
-  input_truth = attr(mesh, "input_truth")
-  if (is.null(input_truth)) {
-    stop("input_truth attribute is missing from mesh")
-  }
-  
-  # Call C++ function
-  result = get_SIMPLICES_cpp(
-    as.matrix(mesh$vertices),
-    as.matrix(mesh$faces),
-    as.matrix(mesh$edges),
-    as.integer(input_truth)
-  )
-  
-  # Write to files if requested
-  if (txt_dirout != "") {
-    dir.create(txt_dirout, showWarnings = FALSE, recursive = TRUE)
-    
-    # Write vertices
-    write.table(result$vertices, 
-                file = file.path(txt_dirout, "vertices.txt"),
-                sep = "\t", row.names = FALSE, quote = FALSE)
-    
-    # Write edges
-    write.table(result$edges,
-                file = file.path(txt_dirout, "edges.txt"),
-                sep = "\t", row.names = FALSE, quote = FALSE)
-    
-    # Write faces
-    write.table(result$faces,
-                file = file.path(txt_dirout, "faces.txt"),
-                sep = "\t", row.names = FALSE, quote = FALSE)
-  }
-  
-  return(result)
-}
-
 #' Extract and process simplices from mesh
 #'
 #' @param mesh Mesh object from get_CCMESH()
@@ -339,20 +289,6 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
   
   lowerSTAR = lowerSTAR[!sapply(lowerSTAR, is.null)]
   return(lowerSTAR)
-}
-
-#' Process lower star to get Morse pairings
-#'
-#' @param list_lowerSTAR Lower star data
-#' @param vertex Vertex data
-#' @return List with vector field and critical simplices
-#' @keywords internal
-proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
-  result <- process_lowerSTAR_cpp(list_lowerSTAR, vertex) # proc_lowerSTAR_cpp()
-  return(list(
-    VE_ = result$VE_,
-    CR_ = gtools::mixedsort(result$CR_)
-  ))
 }
 
 #' Compute lower star in parallel 
@@ -584,17 +520,20 @@ compute_MORSE_complex <- function(mesh, output_dir = NULL, parallel = TRUE,
   simplices = get_SIMPLICES(mesh, output_dir)
   
   message("___ Step 2: Computing lower star filtration")
-  if (parallel) {
+  
+  if (requireNamespace("clustermq", quietly = TRUE) && cores > 1) {
     lower_star = compute_lowerSTAR_parallel(
       simplices$vertices, simplices$edges, simplices$faces, 
       output_dir, cores = cores, batch_size = batch_size
     )
   } else {
-    lower_star = get_lowerSTAR(simplices$vertices, simplices$edges, simplices$faces, output_dir)
+    lower_star = get_lowerSTAR(
+      simplices$vertices, simplices$edges, simplices$faces, output_dir
+    )
   }
   
   message("___ Step 3: Processing Morse pairings")
-  morse_complex = proc_lowerSTAR(lower_star, simplices$vertices)
+  morse_complex = compute_MORSE_complex_cpp(lower_star, simplices$vertices)
   
   # Write final results to files if output_dir provided
   if (!is.null(output_dir)) {

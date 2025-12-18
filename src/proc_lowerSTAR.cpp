@@ -8,16 +8,17 @@
 
 using namespace Rcpp;
 
-// Pre-process simplex data into efficient structures
 struct SimplexInfo {
   int dimension;
   std::vector<int> vertices;
   std::string id;
+  std::string label;
 };
 
-SimplexInfo parseSimplex(const std::string& simplex_id) {
+SimplexInfo parseSimplex(const std::string& simplex_id, const std::string& simplex_label) {
   SimplexInfo info;
   info.id = simplex_id;
+  info.label = simplex_label;
   
   std::istringstream iss(simplex_id);
   std::string token;
@@ -26,260 +27,173 @@ SimplexInfo parseSimplex(const std::string& simplex_id) {
   }
   info.dimension = info.vertices.size() - 1;
   
-  // Sort vertices for consistent comparison
   std::sort(info.vertices.begin(), info.vertices.end());
-  
   return info;
 }
 
-// Fast face/coface relationship checking
-bool isFaceOf(const std::vector<int>& face, const std::vector<int>& coface) {
-  // Check if all vertices of face are in coface (both are sorted)
-  auto face_it = face.begin();
-  auto coface_it = coface.begin();
-  
-  while (face_it != face.end() && coface_it != coface.end()) {
-    if (*face_it < *coface_it) {
-      return false; // Face vertex not found in coface
-    } else if (*face_it > *coface_it) {
-      ++coface_it;
-    } else {
-      ++face_it;
-      ++coface_it;
+// Get first value from label (for sorting by height)
+double getFirstValue(const std::string& label) {
+  std::istringstream iss(label);
+  std::string token;
+  if (iss >> token) {
+    try {
+      return std::stod(token);
+    } catch (...) {
+      return 0.0;
     }
   }
-  
-  return face_it == face.end(); // All face vertices found
+  return 0.0;
 }
 
+// Implementing Forman gradient rules
 // [[Rcpp::export]]
-List process_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex) {
+List proc_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex) {
   int n = list_lowerSTAR.size();
-  std::unordered_set<std::string> VE_set, CR_set;
+  std::unordered_set<std::string> VE_set;
+  std::unordered_set<std::string> CR_set;
   
   IntegerVector vertex_ids = vertex["i123"];
   
+  // Process each vertex's lower star
   for (int i = 0; i < n; i++) {
     DataFrame df = as<DataFrame>(list_lowerSTAR[i]);
     if (df.nrows() == 0) {
+      // Empty lower star: vertex is critical (minimum)
       CR_set.insert(std::to_string(vertex_ids[i]));
       continue;
     }
     
     CharacterVector lexi_id = df["lexi_id"];
+    CharacterVector lexi_label = df["lexi_label"];
     
-    // Parse all simplices upfront
+    // Parse all simplices in this lower star
     std::vector<SimplexInfo> simplices;
-    simplices.reserve(lexi_id.size());
-    
     for (int j = 0; j < lexi_id.size(); j++) {
-      simplices.push_back(parseSimplex(as<std::string>(lexi_id[j])));
+      simplices.push_back(parseSimplex(
+          as<std::string>(lexi_id[j]),
+          as<std::string>(lexi_label[j])
+      ));
     }
     
-    // Group simplices by dimension
+    // Sort simplices by their first label value (height)
+    std::sort(simplices.begin(), simplices.end(),
+              [](const SimplexInfo& a, const SimplexInfo& b) {
+                return getFirstValue(a.label) < getFirstValue(b.label);
+              });
+    
+    // Separate by dimension
     std::vector<SimplexInfo> vertices, edges, faces;
     for (const auto& simplex : simplices) {
-      if (simplex.dimension == 0) {
-        vertices.push_back(simplex);
-      } else if (simplex.dimension == 1) {
-        edges.push_back(simplex);
-      } else if (simplex.dimension == 2) {
-        faces.push_back(simplex);
-      }
+      if (simplex.dimension == 0) vertices.push_back(simplex);
+      else if (simplex.dimension == 1) edges.push_back(simplex);
+      else if (simplex.dimension == 2) faces.push_back(simplex);
     }
     
-    // First: Pair vertex with first simplex of next dimension
-    // This handles the vertex-edge and vertex-face pairings
-    if (!edges.empty()) {
-      // Pair vertex with first edge
-      VE_set.insert(std::to_string(vertex_ids[i]) + ":" + edges[0].id);
-    } else if (!faces.empty()) {
-      // If no edges, pair vertex with first face
-      VE_set.insert(std::to_string(vertex_ids[i]) + ":" + faces[0].id);
-    } else if (!vertices.empty()) {
-      // If only vertices (shouldn't happen in proper filtration)
-      VE_set.insert(std::to_string(vertex_ids[i]) + ":" + vertices[0].id);
-    }
+    // Apply Forman gradient rules:
+    // 1. Pair vertices with edges (0D → 1D)
+    // 2. Pair edges with faces (1D → 2D)
     
-    // Now handle edge-face pairings
-    if (edges.size() > 1 || faces.size() > 0) {
-      // Build edge-face adjacency for O(1) lookups
-      std::unordered_map<std::string, std::vector<std::string>> edge_to_faces;
-      for (const auto& edge : edges) {
-        for (const auto& face : faces) {
-          if (isFaceOf(edge.vertices, face.vertices)) {
-            edge_to_faces[edge.id].push_back(face.id);
-          }
-        }
-      }
+    std::unordered_set<std::string> paired_edges;
+    std::unordered_set<std::string> paired_faces;
+    
+    // First pass: try to pair each vertex with an edge
+    for (const auto& v : vertices) {
+      bool vertex_paired = false;
       
-      // Greedy Morse pairing for edge-face relationships
-      std::unordered_set<std::string> paired_faces;
-      std::vector<std::string> VE_local, CR_local;
-      
-      // Start from j=1 because edges[0] is already paired with vertex
-      for (size_t j = 1; j < edges.size(); j++) {
-        const auto& edge = edges[j];
-        auto face_it = edge_to_faces.find(edge.id);
-        
-        if (face_it != edge_to_faces.end() && !face_it->second.empty()) {
-          // Find first unpaired face
-          for (const auto& face_id : face_it->second) {
-            if (paired_faces.find(face_id) == paired_faces.end()) {
-              VE_local.push_back(edge.id + ":" + face_id);
-              paired_faces.insert(face_id);
-              break;
-            }
-          }
-        }
-        
-        // If no face was paired with this edge, it's critical
-        bool edge_paired = false;
-        for (const auto& pair : VE_local) {
-          if (pair.find(edge.id + ":") == 0) {
-            edge_paired = true;
+      for (const auto& e : edges) {
+        // Check if vertex is part of this edge
+        if (std::find(e.vertices.begin(), e.vertices.end(), v.vertices[0]) != e.vertices.end()) {
+          if (paired_edges.find(e.id) == paired_edges.end()) {
+            // Pair vertex with edge: vertex:edge
+            VE_set.insert(v.id + ":" + e.id);
+            paired_edges.insert(e.id);
+            vertex_paired = true;
             break;
           }
         }
-        // Also check if this edge was the first one paired with vertex
-        if (j == 0) edge_paired = true;
-        
-        if (!edge_paired) {
-          CR_local.push_back(edge.id);
-        }
       }
       
-      // Add unpaired faces to critical list
-      for (const auto& face : faces) {
-        if (paired_faces.find(face.id) == paired_faces.end()) {
-          CR_local.push_back(face.id);
-        }
+      if (!vertex_paired) {
+        // Vertex remains critical
+        CR_set.insert(v.id);
       }
-      
-      // Also handle the case where we have only edges (no faces)
-      if (faces.empty() && edges.size() > 1) {
-        // All edges after the first one are critical
-        for (size_t j = 1; j < edges.size(); j++) {
-          CR_local.push_back(edges[j].id);
-        }
-      }
-      
-      // Update global sets
-      for (const auto& pair : VE_local) VE_set.insert(pair);
-      for (const auto& crit : CR_local) CR_set.insert(crit);
     }
     
-    // Handle any remaining vertices (should be minimal in proper filtration)
-    for (size_t j = 1; j < vertices.size(); j++) {
-      CR_set.insert(vertices[j].id);
+    // Second pass: pair edges with faces
+    for (const auto& e : edges) {
+      if (paired_edges.find(e.id) != paired_edges.end()) {
+        continue; // Already paired with a vertex
+      }
+      
+      bool edge_paired = false;
+      for (const auto& f : faces) {
+        // Check if edge is part of this face
+        bool is_face_of = true;
+        for (int v : e.vertices) {
+          if (std::find(f.vertices.begin(), f.vertices.end(), v) == f.vertices.end()) {
+            is_face_of = false;
+            break;
+          }
+        }
+        
+        if (is_face_of && paired_faces.find(f.id) == paired_faces.end()) {
+          // Pair edge with face: edge:face
+          VE_set.insert(e.id + ":" + f.id);
+          paired_faces.insert(f.id);
+          edge_paired = true;
+          break;
+        }
+      }
+      
+      if (!edge_paired) {
+        // Edge remains critical (1-saddle)
+        CR_set.insert(e.id);
+      }
+    }
+    
+    // Third pass: unpaired faces are critical (maxima)
+    for (const auto& f : faces) {
+      if (paired_faces.find(f.id) == paired_faces.end()) {
+        CR_set.insert(f.id);
+      }
     }
   }
   
-  // Convert to output
+  // Convert to vectors
   std::vector<std::string> VE_final(VE_set.begin(), VE_set.end());
   std::vector<std::string> CR_final(CR_set.begin(), CR_set.end());
   
-  return List::create(_["VE_"] = VE_final, _["CR_"] = CR_final);
+  Rcout << "\n   -------------\n";
+  Rcout << "   Morse complex:\n";
+  Rcout << "   Gradient pairs: " << VE_final.size() << "\n";
+  Rcout << "   Critical simplices: " << CR_final.size() << "\n";
+  
+  // Count by dimension
+  int crit_vertices = 0, crit_edges = 0, crit_faces = 0;
+  for (const auto& crit : CR_final) {
+    std::istringstream iss(crit);
+    std::string token;
+    int count = 0;
+    while (iss >> token) count++;
+    
+    if (count == 1) crit_vertices++;
+    else if (count == 2) crit_edges++;
+    else if (count == 3) crit_faces++;
+  }
+  
+  Rcout << "   Critical vertices (minima): " << crit_vertices << "\n";
+  Rcout << "   Critical edges (1-saddles): " << crit_edges << "\n";
+  Rcout << "   Critical faces (maxima): " << crit_faces << "\n";
+  Rcout << "   -------------\n\n";
+  
+  return List::create(
+    _["VE_"] = VE_final,
+    _["CR_"] = CR_final
+  );
 }
 
+// Main function
 // [[Rcpp::export]]
-List proc_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex) {
-    int n = list_lowerSTAR.size();
-    std::unordered_set<std::string> VE_set, CR_set;
-    
-    IntegerVector vertex_ids = vertex["i123"];
-    
-    for (int i = 0; i < n; i++) {
-        DataFrame df = as<DataFrame>(list_lowerSTAR[i]);
-        if (df.nrows() == 0) {
-            CR_set.insert(std::to_string(vertex_ids[i]));
-            continue;
-        }
-        
-        CharacterVector lexi_id = df["lexi_id"];
-        
-        // Parse all simplices upfront
-        std::vector<SimplexInfo> simplices;
-        simplices.reserve(lexi_id.size());
-        
-        for (int j = 0; j < lexi_id.size(); j++) {
-            simplices.push_back(parseSimplex(as<std::string>(lexi_id[j])));
-        }
-        
-        // First pairing: vertex with first simplex
-        if (!simplices.empty()) {
-            VE_set.insert(std::to_string(vertex_ids[i]) + ":" + simplices[0].id);
-        }
-        
-        if (simplices.size() <= 1) continue;
-        
-        // Separate faces (dimension 1) and cofaces (dimension 2)
-        std::vector<SimplexInfo> faces, cofaces;
-        for (size_t j = 1; j < simplices.size(); j++) {
-            if (simplices[j].dimension == 1) {
-                faces.push_back(simplices[j]);
-            } else {
-                cofaces.push_back(simplices[j]);
-            }
-        }
-        
-        if (faces.empty()) continue;
-        
-        // Build face-coface adjacency for O(1) lookups
-        std::unordered_map<std::string, std::vector<std::string>> face_to_cofaces;
-        for (const auto& face : faces) {
-            for (const auto& coface : cofaces) {
-                if (isFaceOf(face.vertices, coface.vertices)) {
-                    face_to_cofaces[face.id].push_back(coface.id);
-                }
-            }
-        }
-        
-        // Greedy Morse pairing
-        std::unordered_set<std::string> paired_cofaces;
-        std::vector<std::string> VE_local, CR_local;
-        
-        for (const auto& face : faces) {
-            auto coface_it = face_to_cofaces.find(face.id);
-            if (coface_it != face_to_cofaces.end() && !coface_it->second.empty()) {
-                // Find first unpaired coface
-                for (const auto& coface_id : coface_it->second) {
-                    if (paired_cofaces.find(coface_id) == paired_cofaces.end()) {
-                        VE_local.push_back(face.id + ":" + coface_id);
-                        paired_cofaces.insert(coface_id);
-                        break;
-                    }
-                }
-            }
-            
-            // If no coface was paired with this face, it's critical
-            bool face_paired = false;
-            for (const auto& pair : VE_local) {
-                if (pair.find(face.id + ":") == 0) {
-                    face_paired = true;
-                    break;
-                }
-            }
-            if (!face_paired) {
-                CR_local.push_back(face.id);
-            }
-        }
-        
-        // Add unpaired cofaces to critical list
-        for (const auto& coface : cofaces) {
-            if (paired_cofaces.find(coface.id) == paired_cofaces.end()) {
-                CR_local.push_back(coface.id);
-            }
-        }
-        
-        // Update global sets
-        for (const auto& pair : VE_local) VE_set.insert(pair);
-        for (const auto& crit : CR_local) CR_set.insert(crit);
-    }
-    
-    // Convert to output
-    std::vector<std::string> VE_final(VE_set.begin(), VE_set.end());
-    std::vector<std::string> CR_final(CR_set.begin(), CR_set.end());
-    
-    return List::create(_["VE_"] = VE_final, _["CR_"] = CR_final);
+List compute_MORSE_complex_cpp(List list_lowerSTAR, DataFrame vertex) {
+  return proc_lowerSTAR_cpp(list_lowerSTAR, vertex);
 }
