@@ -11,15 +11,16 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // get_CCMESH_cpp
-List get_CCMESH_cpp(NumericMatrix vertices, NumericMatrix faces, bool select_largest);
-RcppExport SEXP _DiscreteMorseR_get_CCMESH_cpp(SEXP verticesSEXP, SEXP facesSEXP, SEXP select_largestSEXP) {
+List get_CCMESH_cpp(NumericMatrix vertices, NumericMatrix faces, Nullable<NumericVector> input_truth_nullable, bool select_largest);
+RcppExport SEXP _DiscreteMorseR_get_CCMESH_cpp(SEXP verticesSEXP, SEXP facesSEXP, SEXP input_truth_nullableSEXP, SEXP select_largestSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type vertices(verticesSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type faces(facesSEXP);
+    Rcpp::traits::input_parameter< Nullable<NumericVector> >::type input_truth_nullable(input_truth_nullableSEXP);
     Rcpp::traits::input_parameter< bool >::type select_largest(select_largestSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_CCMESH_cpp(vertices, faces, select_largest));
+    rcpp_result_gen = Rcpp::wrap(get_CCMESH_cpp(vertices, faces, input_truth_nullable, select_largest));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -86,7 +87,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_DiscreteMorseR_get_CCMESH_cpp", (DL_FUNC) &_DiscreteMorseR_get_CCMESH_cpp, 3},
+    {"_DiscreteMorseR_get_CCMESH_cpp", (DL_FUNC) &_DiscreteMorseR_get_CCMESH_cpp, 4},
     {"_DiscreteMorseR_get_MIXEDSORT_cpp", (DL_FUNC) &_DiscreteMorseR_get_MIXEDSORT_cpp, 2},
     {"_DiscreteMorseR_get_PRECOMPUTEDvert_cpp", (DL_FUNC) &_DiscreteMorseR_get_PRECOMPUTEDvert_cpp, 2},
     {"_DiscreteMorseR_get_simplexCENTER_cpp", (DL_FUNC) &_DiscreteMorseR_get_simplexCENTER_cpp, 2},
