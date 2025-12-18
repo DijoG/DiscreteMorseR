@@ -77,10 +77,10 @@ tictoc::toc()
 ```r
 crit_types <- sapply(strsplit(morse_complex$critical, " "), length)
 table(crit_types)
-# 1 = vertices (0-simplices, minima), 2 = edges (1-simplices)
+# 1 = vertices (0-simplices, minima), 2 = edges (1-simplices), 3 = faces (2-simplices)
 crit_types
-    1     2 
-21031  8085 
+     1      2      3 
+225146    121    982  
 
 ```
 ## Visualization

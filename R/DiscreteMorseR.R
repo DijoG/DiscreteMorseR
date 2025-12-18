@@ -807,7 +807,7 @@ visualize_MORSE_2d <- function(morse_complex,
     p = p + ggplot2::geom_segment(
       data = plot_data$gradient,
       ggplot2::aes(x = x_from, y = y_from, xend = x_to, yend = y_to),
-      color = "grey60", alpha = point_alpha * 0.7, 
+      color = "grey60", alpha = point_alpha * .8, 
       arrow = ggplot2::arrow(length = ggplot2::unit(0.05, "cm")),
       linewidth = 0.2
     )
@@ -819,7 +819,7 @@ visualize_MORSE_2d <- function(morse_complex,
       data = plot_data$edges,
       ggplot2::aes(x = x, y = y, color = type),
       alpha = point_alpha, 
-      size = point_size,
+      size = point_size*1.5,
       shape = 3  # '+' shape for edges
     )
   }
@@ -829,7 +829,7 @@ visualize_MORSE_2d <- function(morse_complex,
       data = plot_data$faces,
       ggplot2::aes(x = x, y = y, color = type),
       alpha = point_alpha, 
-      size = point_size,
+      size = point_size*2,
       shape = 18  # Diamond shape for faces
     )
   }
@@ -839,7 +839,7 @@ visualize_MORSE_2d <- function(morse_complex,
       data = plot_data$vertices,
       ggplot2::aes(x = x, y = y, color = type),
       alpha = point_alpha, 
-      size = point_size * 1.5,  # Larger for emphasis
+      size = point_size,  # Larger for emphasis
       shape = 16  # Solid circle for vertices
     )
   }
