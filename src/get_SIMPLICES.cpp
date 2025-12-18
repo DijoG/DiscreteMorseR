@@ -2,39 +2,31 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <unordered_map>
 
 using namespace Rcpp;
 
-// Fast vertex structure
 struct Vertex {
   double x, y, z;
   int id;
   std::string z_str;
 };
 
-// Fast comparison for sorting
-bool compareByZ(const std::pair<double, int>& a, const std::pair<double, int>& b) {
-  return a.first < b.first;
-}
-
 // [[Rcpp::export]]
 List get_SIMPLICES_cpp(NumericMatrix vertices_mat, 
-                            NumericMatrix faces_mat, 
-                            NumericMatrix edges_mat,
-                            IntegerVector input_truth) {
+                       NumericMatrix faces_mat, 
+                       NumericMatrix edges_mat,
+                       IntegerVector input_truth) {
   
   const int n_vertices = vertices_mat.nrow();
   const int n_faces = faces_mat.nrow();
   const int n_edges = edges_mat.nrow();
   
-  // Pre-allocate output vectors
+  // Process vertices
+  std::vector<Vertex> vertices(n_vertices);
   NumericVector v_x(n_vertices), v_y(n_vertices);
   CharacterVector v_z(n_vertices);
   IntegerVector v_id(n_vertices);
   
-  // Process vertices
-  std::vector<Vertex> vertices(n_vertices);
   for (int i = 0; i < n_vertices; ++i) {
     vertices[i].x = vertices_mat(i, 0);
     vertices[i].y = vertices_mat(i, 1);
@@ -48,9 +40,6 @@ List get_SIMPLICES_cpp(NumericMatrix vertices_mat,
     v_id[i] = vertices[i].id;
   }
   
-  // Create lookup: row index -> vertex (for edges/faces)
-  // No need for hashmap since edges/faces use 1-based row indices
-  
   // Process edges
   IntegerVector e_i1(n_edges), e_i2(n_edges);
   NumericVector e_ii1X(n_edges), e_ii1Y(n_edges), e_ii2X(n_edges), e_ii2Y(n_edges);
@@ -59,7 +48,7 @@ List get_SIMPLICES_cpp(NumericMatrix vertices_mat,
   CharacterVector e_lexi_label(n_edges), e_lexi_id(n_edges);
   
   for (int i = 0; i < n_edges; ++i) {
-    int idx1 = edges_mat(i, 0) - 1;  // Convert to 0-based
+    int idx1 = edges_mat(i, 0) - 1;
     int idx2 = edges_mat(i, 1) - 1;
     
     const Vertex& v1 = vertices[idx1];
@@ -78,20 +67,23 @@ List get_SIMPLICES_cpp(NumericMatrix vertices_mat,
     e_ii2Z[i] = v2.z_str;
     
     // Create label and idlabel
-    std::string label = v1.z_str + " " + v2.z_str;
-    std::string idlabel = std::to_string(v1.id) + " " + std::to_string(v2.id);
+    e_label[i] = v1.z_str + " " + v2.z_str;
+    e_idlabel[i] = std::to_string(v1.id) + " " + std::to_string(v2.id);
     
-    // Sort for lexicographic order
+    // lexi_label: sorted by Z-value
     if (v1.z > v2.z) {
       e_lexi_label[i] = v2.z_str + " " + v1.z_str;
-      e_lexi_id[i] = std::to_string(v2.id) + " " + std::to_string(v1.id);
     } else {
       e_lexi_label[i] = v1.z_str + " " + v2.z_str;
-      e_lexi_id[i] = std::to_string(v1.id) + " " + std::to_string(v2.id);
     }
     
-    e_label[i] = label;
-    e_idlabel[i] = idlabel;
+    // lexi_id: sorted by vertex ID (CRITICAL FIX!)
+    int id1 = v1.id;
+    int id2 = v2.id;
+    if (id1 > id2) {
+      std::swap(id1, id2);
+    }
+    e_lexi_id[i] = std::to_string(id1) + " " + std::to_string(id2);
   }
   
   // Process faces
@@ -103,8 +95,12 @@ List get_SIMPLICES_cpp(NumericMatrix vertices_mat,
   CharacterVector f_label(n_faces), f_idlabel(n_faces);
   CharacterVector f_lexi_label(n_faces), f_lexi_id(n_faces);
   
-  // Temporary arrays for sorting
-  std::vector<std::pair<double, int>> z_ids(3);
+  // Temporary structure for sorting
+  struct IdZPair {
+    int id;
+    double z;
+    std::string z_str;
+  };
   
   for (int i = 0; i < n_faces; ++i) {
     int idx1 = faces_mat(i, 0) - 1;
@@ -133,27 +129,37 @@ List get_SIMPLICES_cpp(NumericMatrix vertices_mat,
     f_ii3Z[i] = v3.z_str;
     
     // Create label and idlabel
-    std::string label = v1.z_str + " " + v2.z_str + " " + v3.z_str;
-    std::string idlabel = std::to_string(v1.id) + " " + 
+    f_label[i] = v1.z_str + " " + v2.z_str + " " + v3.z_str;
+    f_idlabel[i] = std::to_string(v1.id) + " " + 
       std::to_string(v2.id) + " " + 
       std::to_string(v3.id);
     
-    // Sort for lexicographic order
-    z_ids[0] = {v1.z, v1.id};
-    z_ids[1] = {v2.z, v2.id};
-    z_ids[2] = {v3.z, v3.id};
+    // Prepare for sorting
+    std::vector<IdZPair> pairs = {
+      {v1.id, v1.z, v1.z_str},
+      {v2.id, v2.z, v2.z_str},
+      {v3.id, v3.z, v3.z_str}
+    };
     
-    std::sort(z_ids.begin(), z_ids.end(), compareByZ);
+    // lexi_id: sorted by vertex ID
+    std::vector<IdZPair> pairs_by_id = pairs;
+    std::sort(pairs_by_id.begin(), pairs_by_id.end(), 
+              [](const IdZPair& a, const IdZPair& b) {
+                return a.id < b.id;
+              });
+    f_lexi_id[i] = std::to_string(pairs_by_id[0].id) + " " +
+      std::to_string(pairs_by_id[1].id) + " " +
+      std::to_string(pairs_by_id[2].id);
     
-    f_lexi_label[i] = std::to_string(z_ids[0].first) + " " +
-      std::to_string(z_ids[1].first) + " " +
-      std::to_string(z_ids[2].first);
-    f_lexi_id[i] = std::to_string(z_ids[0].second) + " " +
-      std::to_string(z_ids[1].second) + " " +
-      std::to_string(z_ids[2].second);
-    
-    f_label[i] = label;
-    f_idlabel[i] = idlabel;
+    // lexi_label: sorted by Z-value
+    std::vector<IdZPair> pairs_by_z = pairs;
+    std::sort(pairs_by_z.begin(), pairs_by_z.end(), 
+              [](const IdZPair& a, const IdZPair& b) {
+                return a.z < b.z;
+              });
+    f_lexi_label[i] = pairs_by_z[0].z_str + " " +
+      pairs_by_z[1].z_str + " " +
+      pairs_by_z[2].z_str;
   }
   
   // Create data frames
