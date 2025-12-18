@@ -145,7 +145,7 @@ get_CCMESH <- function(alphahull, select_largest = TRUE) {
 #' @param txt_dirout Directory for output files (optional)
 #' @return List of processed simplices
 #' @keywords internal
-get_SIMPLICESold <- function(mesh, txt_dirout = "") {
+get_SIMPLICEScpp <- function(mesh, txt_dirout = "") {
   
   # Input validation
   if (is.null(mesh) || is.null(mesh$vertices) || is.null(mesh$faces) || is.null(mesh$edges)) {

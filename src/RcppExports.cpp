@@ -111,6 +111,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// process_lowerSTAR_forman_cpp
+List process_lowerSTAR_forman_cpp(List list_lowerSTAR, IntegerVector vertex_ids);
+RcppExport SEXP _DiscreteMorseR_process_lowerSTAR_forman_cpp(SEXP list_lowerSTARSEXP, SEXP vertex_idsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< List >::type list_lowerSTAR(list_lowerSTARSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type vertex_ids(vertex_idsSEXP);
+    rcpp_result_gen = Rcpp::wrap(process_lowerSTAR_forman_cpp(list_lowerSTAR, vertex_ids));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_DiscreteMorseR_get_CCMESH_cpp", (DL_FUNC) &_DiscreteMorseR_get_CCMESH_cpp, 4},
@@ -121,6 +133,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_DiscreteMorseR_get_vertTO_cpp", (DL_FUNC) &_DiscreteMorseR_get_vertTO_cpp, 3},
     {"_DiscreteMorseR_process_lowerSTAR_cpp", (DL_FUNC) &_DiscreteMorseR_process_lowerSTAR_cpp, 2},
     {"_DiscreteMorseR_proc_lowerSTAR_cpp", (DL_FUNC) &_DiscreteMorseR_proc_lowerSTAR_cpp, 2},
+    {"_DiscreteMorseR_process_lowerSTAR_forman_cpp", (DL_FUNC) &_DiscreteMorseR_process_lowerSTAR_forman_cpp, 2},
     {NULL, NULL, 0}
 };
 

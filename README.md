@@ -32,19 +32,20 @@ DiscreteMorseR::add_DECIMAL(215.2585589, 3)
 library(lidR);library(tidyverse);library(data.table)
 
 # Load LiDAR data
-ilas <- lidR::readLAS("D:/Gergo/DiscreteMorseR/lasref/12tree_exampleN.las")
-trees <- lidR::filter_poi(ilas, treeid %in% c(2:7))
-plot(trees, pal = "grey98")
+trees <- lidR::readLAS("D:/Gergo/DiscreteMorseR/lasref/12tree_exampleN.las")
+lidR::plot(trees, pal = "grey98")
 
 # Create matrix input for alpha hull
 lasdf <- 
-  ilas@data[,1:3] %>%
+  ilas@data[, c("X", "Y", "Z", "pid")] %>%
   as.data.frame() %>%
-  distinct() %>%
+  distinct(X, Y, Z, .keep_all = TRUE) %>%
   as.matrix()
 
 # Generate alpha hull
-a <- ahull3D::ahull3D(lasdf, alpha = .1) 
+a <- ahull3D::ahull3D(lasdf[,1:3], 
+  input_truth = lasdff[,4], 
+  alpha = .1) 
 
 # Extract largest connected component mesh
 mesh <- DiscreteMorseR::get_CCMESH(a)
@@ -67,7 +68,7 @@ tictoc::toc()
 
 **🚀 Performance Highlights:**
 - ✅ **226,267 vertices** processed in parallel  
-- ✅ **12 cores** utilized (~38% CPU efficiency)
+- ✅ **12 cores** utilized (~95% CPU efficiency)
 - ✅ **100% completion rate** - all lower star sets computed
 - ✅ **Complete Morse analysis** in ~3.5 minutes
 - ✅ **Automatic file export** of all results
@@ -76,23 +77,13 @@ tictoc::toc()
 ```r
 crit_types <- sapply(strsplit(morse_complex$critical, " "), length)
 table(crit_types)
-# 1 = vertices, 2 = edges, 3 = faces
+# 1 = vertices (0-simplices, minima), 2 = edges (1-simplices)
+crit_types
+    1     2 
+21031  8085 
+
 ```
 ## Visualization
-```r
-# Gradient field only
-p <- DiscreteMorseR::visualize_MORSE_2d(
-  morse_complex, 
-  projection = "XZ",
-  point_alpha = .6,
-  point_size = .8,
-  plot_critical = FALSE,
-  max_points = 30000
-)
-print(p)
-```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR01v.png" width="800">
-
 ```r
 # Critical simplices only  
 pp <- DiscreteMorseR::visualize_MORSE_2d(
@@ -105,35 +96,37 @@ pp <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(pp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR02v.png" width="800">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRxz.png" width="800">
 
 ```r
 # Multi-panel: all projections
-ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
-  morse_complex,
-  point_alpha = .5,
+ppp <- DiscreteMorseR::visualize_MORSE_2d(
+  morse_complex, 
+  projection = "XY",
+  point_alpha = .6,
   point_size = .8,
   plot_gradient = FALSE,
   max_points = 30000
 )
 print(ppp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR03v.png" width="800" height="800">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRxy.png" width="800" height="800">
+
+```r
+# Multi-panel: all projections
+ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
+  morse_complex, 
+  point_alpha = .6,
+  point_size = .8,
+  plot_gradient = FALSE,
+  max_points = 30000
+)
+print(ppp)
+```
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR3.png" width="800" height="800">
 
 ## Save Visualization
 ```r
-DiscreteMorseR::save_MORSE_2d(
-  morse_complex,
-  filename = "D:/Gergo/DiscreteMorseR/png/DMR01v.png",
-  projection = "XZ",
-  point_alpha = .6,
-  point_size = .8,
-  plot_critical = F,
-  max_points = 30000,
-  width = 6,
-  height = 5
-)
-
 DiscreteMorseR::save_MORSE_2d(
   morse_complex,
   filename = "D:/Gergo/DiscreteMorseR/png/DMR02v.png",
@@ -144,17 +137,5 @@ DiscreteMorseR::save_MORSE_2d(
   max_points = 30000,
   width = 6,
   height = 5
-)
-
-DiscreteMorseR::save_MORSE_2d(
-  morse_complex,
-  filename = "D:/Gergo/DiscreteMorseR/png/DMR03v.png",
-  point_alpha = .5,
-  point_size = .8,
-  plot_gradient = F,
-  max_points = 30000,
-  panel_2d = T,
-  width = 6,
-  height = 6
 )
 ```

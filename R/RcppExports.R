@@ -33,3 +33,7 @@ proc_lowerSTAR_cpp <- function(list_lowerSTAR, vertex) {
     .Call(`_DiscreteMorseR_proc_lowerSTAR_cpp`, list_lowerSTAR, vertex)
 }
 
+process_lowerSTAR_forman_cpp <- function(list_lowerSTAR, vertex_ids) {
+    .Call(`_DiscreteMorseR_process_lowerSTAR_forman_cpp`, list_lowerSTAR, vertex_ids)
+}
+
