@@ -232,7 +232,7 @@ List create_single_mesh_fast(const NumericMatrix& vertices, const NumericMatrix&
 }
 
 // [[Rcpp::export]]
-List get_CCMESH_cpp(NumericMatrix vertices, NumericMatrix faces, bool return_largest = true) {
+List get_CCMESH_cpp(NumericMatrix vertices, NumericMatrix faces, bool select_largest = true) {
     const int n_vertices = vertices.nrow();
     const int n_faces = faces.nrow();
     
@@ -241,8 +241,8 @@ List get_CCMESH_cpp(NumericMatrix vertices, NumericMatrix faces, bool return_lar
         stop("Empty vertices or faces matrix");
     }
     
-    // Fast path: single component assumption when return_largest = true
-    if (return_largest) {
+    // Fast path: single component assumption when select_largest = true
+    if (select_largest) {
         return create_single_mesh_fast(vertices, faces);
     }
     
