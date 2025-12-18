@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <queue>
 #include <unordered_set>
-#include <unordered_map>
 
 using namespace Rcpp;
 
@@ -17,19 +16,19 @@ struct EdgeHash {
   }
 };
 
-// Ultra-fast component extractor with input_truth support
+// Ultra-fast component extractor - zero dynamic allocation in hot loops
 class FastComponentExtractor {
 private:
-  std::vector<int> queue;
-  std::vector<bool> visited;
+  std::vector<int> queue;              // declared first
+  std::vector<bool> visited;           // declared second  
   std::vector<int> component_vertices;
   std::unordered_set<Edge, EdgeHash> component_edges;
   int queue_start, queue_end;
   
 public:
   FastComponentExtractor(int n_vertices) : 
-  queue(n_vertices),
-  visited(n_vertices + 1, false),
+  queue(n_vertices),              // initialized first
+  visited(n_vertices + 1, false), // initialized second
   component_vertices() {
     component_vertices.reserve(n_vertices);
     component_edges.reserve(n_vertices * 3);
@@ -37,7 +36,7 @@ public:
   
   List extract_component_fast(const NumericMatrix& vertices, 
                               const NumericMatrix& faces,
-                              const NumericVector& input_truth,
+                              const IntegerVector& input_truth,
                               int start_vertex,
                               const std::vector<std::vector<int>>& adj) {
     
@@ -79,10 +78,72 @@ public:
   // Getter for visited array
   const std::vector<bool>& getVisited() const { return visited; }
   
+  // Reset visited array (for finding multiple components)
+  void resetVisited() {
+    std::fill(visited.begin(), visited.end(), false);
+  }
+  
+  // Find largest component by BFS
+  List find_largest_component(const NumericMatrix& vertices,
+                              const NumericMatrix& faces,
+                              const IntegerVector& input_truth,
+                              const std::vector<std::vector<int>>& adj) {
+    
+    int n_vertices = vertices.nrow();
+    List largest_component;
+    int largest_size = -1;
+    int largest_start = -1;
+    
+    // First pass: find largest component
+    for (int i = 1; i <= n_vertices; ++i) {
+      if (!visited[i] && !adj[i].empty()) {
+        // Do a quick BFS to measure component size
+        queue_start = 0;
+        queue_end = 0;
+        int component_size = 0;
+        
+        queue[queue_end++] = i;
+        visited[i] = true;
+        component_size++;
+        
+        while (queue_start < queue_end) {
+          int current = queue[queue_start++];
+          const std::vector<int>& neighbors = adj[current];
+          
+          for (size_t j = 0; j < neighbors.size(); ++j) {
+            int neighbor = neighbors[j];
+            if (!visited[neighbor]) {
+              visited[neighbor] = true;
+              queue[queue_end++] = neighbor;
+              component_size++;
+            }
+          }
+        }
+        
+        // Track largest component
+        if (component_size > largest_size) {
+          largest_size = component_size;
+          largest_start = i;
+        }
+      }
+    }
+    
+    // Reset visited for second pass
+    resetVisited();
+    
+    // Extract the largest component
+    if (largest_start != -1) {
+      largest_component = extract_component_fast(vertices, faces, input_truth, 
+                                                 largest_start, adj);
+    }
+    
+    return largest_component;
+  }
+  
 private:
   List build_component_ultrafast(const NumericMatrix& vertices, 
                                  const NumericMatrix& faces,
-                                 const NumericVector& input_truth) {
+                                 const IntegerVector& input_truth) {
     
     // Sort vertices once
     std::sort(component_vertices.begin(), component_vertices.end());
@@ -91,7 +152,12 @@ private:
     std::vector<int> vertex_map(vertices.nrow() + 1, -1);
     const int num_comp_vertices = component_vertices.size();
     NumericMatrix comp_vertices(num_comp_vertices, 3);
-    NumericVector comp_input_truth(num_comp_vertices);
+    
+    // Extract input_truth for component if it exists
+    IntegerVector comp_input_truth;
+    if (input_truth.length() > 0) {
+      comp_input_truth = IntegerVector(num_comp_vertices);
+    }
     
     for (int i = 0; i < num_comp_vertices; ++i) {
       const int old_idx = component_vertices[i];
@@ -100,9 +166,8 @@ private:
       comp_vertices(i, 1) = vertices(old_idx - 1, 1);
       comp_vertices(i, 2) = vertices(old_idx - 1, 2);
       
-      // Preserve input_truth values
       if (input_truth.length() > 0) {
-        comp_input_truth(i) = input_truth(old_idx - 1);
+        comp_input_truth[i] = input_truth[old_idx - 1];
       }
     }
     
@@ -156,7 +221,6 @@ private:
     mesh["faces"] = comp_faces;
     mesh["edges"] = comp_edges;
     
-    // Add input_truth if it exists
     if (input_truth.length() > 0) {
       mesh["input_truth"] = comp_input_truth;
     }
@@ -209,55 +273,12 @@ std::vector<std::vector<int>> build_adjacency_ultrafast(int n_vertices, const Nu
   return adj;
 }
 
-// Fast single mesh creation with input_truth support
-List create_single_mesh_fast(const NumericMatrix& vertices, 
-                             const NumericMatrix& faces,
-                             const NumericVector& input_truth) {
-  std::unordered_set<Edge, EdgeHash> unique_edges;
-  const int n_faces = faces.nrow();
-  unique_edges.reserve(n_faces * 3);
-  
-  // Single pass edge extraction
-  for (int i = 0; i < n_faces; ++i) {
-    int v1 = faces(i, 0), v2 = faces(i, 1), v3 = faces(i, 2);
-    
-    // Sort edges for consistent hashing
-    if (v1 > v2) std::swap(v1, v2);
-    unique_edges.insert(std::make_pair(v1, v2));
-    
-    if (v1 > v3) std::swap(v1, v3);
-    unique_edges.insert(std::make_pair(v1, v3));
-    
-    if (v2 > v3) std::swap(v2, v3);
-    unique_edges.insert(std::make_pair(v2, v3));
-  }
-  
-  NumericMatrix edges(unique_edges.size(), 2);
-  int edge_idx = 0;
-  for (const auto& edge : unique_edges) {
-    edges(edge_idx, 0) = edge.first;
-    edges(edge_idx, 1) = edge.second;
-    edge_idx++;
-  }
-  
-  List mesh;
-  mesh["vertices"] = vertices;
-  mesh["faces"] = faces;
-  mesh["edges"] = edges;
-  
-  // Add input_truth if it exists
-  if (input_truth.length() > 0) {
-    mesh["input_truth"] = input_truth;
-  }
-  
-  return mesh;
-}
-
 // [[Rcpp::export]]
 List get_CCMESH_cpp(NumericMatrix vertices, 
                     NumericMatrix faces, 
-                    Nullable<NumericVector> input_truth_nullable = R_NilValue,
-                    bool select_largest = true) {
+                    Nullable<IntegerVector> input_truth_ = R_NilValue,
+                    bool return_largest = true) {
+  
   const int n_vertices = vertices.nrow();
   const int n_faces = faces.nrow();
   
@@ -266,46 +287,59 @@ List get_CCMESH_cpp(NumericMatrix vertices,
     stop("Empty vertices or faces matrix");
   }
   
-  // Convert nullable input_truth to regular vector
-  NumericVector input_truth;
-  if (input_truth_nullable.isNotNull()) {
-    input_truth = as<NumericVector>(input_truth_nullable);
-    
-    // Validate input_truth dimensions
-    if (input_truth.length() != n_vertices) {
-      warning("input_truth length doesn't match vertices count, ignoring");
-      input_truth = NumericVector(0);
-    }
+  // Extract input_truth attribute (handle NULL value)
+  IntegerVector input_truth;
+  
+  if (input_truth_.isNotNull()) {
+    input_truth = as<IntegerVector>(input_truth_);
   }
   
-  // Fast path: single component assumption when select_largest = true
-  if (select_largest) {
-    return create_single_mesh_fast(vertices, faces, input_truth);
-  }
-  
-  // Multi-component processing only when explicitly requested
+  // Build adjacency list (needed for both modes)
   std::vector<std::vector<int>> adj = build_adjacency_ultrafast(n_vertices, faces);
-  FastComponentExtractor extractor(n_vertices);
   
-  std::vector<List> components;
-  components.reserve(10);
-  
-  for (int i = 1; i <= n_vertices; ++i) {
-    if (!extractor.getVisited()[i] && !adj[i].empty()) {
-      List component = extractor.extract_component_fast(vertices, faces, input_truth, i, adj);
-      components.push_back(component);
+  if (return_largest) {
+    // Find and return only the largest connected component
+    FastComponentExtractor extractor(n_vertices);
+    List largest_component = extractor.find_largest_component(vertices, faces, 
+                                                              input_truth, adj);
+    
+    // If no component found (shouldn't happen), return empty mesh
+    if (largest_component.length() == 0) {
+      List empty_mesh;
+      empty_mesh["vertices"] = NumericMatrix(0, 3);
+      empty_mesh["faces"] = NumericMatrix(0, 3);
+      empty_mesh["edges"] = NumericMatrix(0, 2);
+      return empty_mesh;
     }
+    
+    return largest_component;
+    
+  } else {
+    // Return all connected components
+    FastComponentExtractor extractor(n_vertices);
+    std::vector<List> components;
+    components.reserve(10);
+    
+    for (int i = 1; i <= n_vertices; ++i) {
+      if (!extractor.getVisited()[i] && !adj[i].empty()) {
+        List component = extractor.extract_component_fast(vertices, faces, 
+                                                          input_truth, i, adj);
+        components.push_back(component);
+      }
+    }
+    
+    // Handle no components found
+    if (components.empty()) {
+      List empty_result;
+      empty_result["components"] = List::create();
+      empty_result["n_components"] = 0;
+      return empty_result;
+    }
+    
+    // Return all components as a list
+    List result;
+    result["components"] = wrap(components);
+    result["n_components"] = components.size();
+    return result;
   }
-  
-  // Handle no components found
-  if (components.empty()) {
-    return create_single_mesh_fast(vertices, faces, input_truth);
-  }
-  
-  // Return all components as a list
-  List result;
-  result["components"] = components;
-  result["n_components"] = components.size();
-  
-  return result;
 }
