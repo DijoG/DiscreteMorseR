@@ -73,6 +73,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// process_lowerSTAR_cpp
+List process_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex);
+RcppExport SEXP _DiscreteMorseR_process_lowerSTAR_cpp(SEXP list_lowerSTARSEXP, SEXP vertexSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< List >::type list_lowerSTAR(list_lowerSTARSEXP);
+    Rcpp::traits::input_parameter< DataFrame >::type vertex(vertexSEXP);
+    rcpp_result_gen = Rcpp::wrap(process_lowerSTAR_cpp(list_lowerSTAR, vertex));
+    return rcpp_result_gen;
+END_RCPP
+}
 // proc_lowerSTAR_cpp
 List proc_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex);
 RcppExport SEXP _DiscreteMorseR_proc_lowerSTAR_cpp(SEXP list_lowerSTARSEXP, SEXP vertexSEXP) {
@@ -92,6 +104,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_DiscreteMorseR_get_PRECOMPUTEDvert_cpp", (DL_FUNC) &_DiscreteMorseR_get_PRECOMPUTEDvert_cpp, 2},
     {"_DiscreteMorseR_get_simplexCENTER_cpp", (DL_FUNC) &_DiscreteMorseR_get_simplexCENTER_cpp, 2},
     {"_DiscreteMorseR_get_vertTO_cpp", (DL_FUNC) &_DiscreteMorseR_get_vertTO_cpp, 3},
+    {"_DiscreteMorseR_process_lowerSTAR_cpp", (DL_FUNC) &_DiscreteMorseR_process_lowerSTAR_cpp, 2},
     {"_DiscreteMorseR_proc_lowerSTAR_cpp", (DL_FUNC) &_DiscreteMorseR_proc_lowerSTAR_cpp, 2},
     {NULL, NULL, 0}
 };

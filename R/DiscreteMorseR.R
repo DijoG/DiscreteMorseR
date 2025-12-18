@@ -299,7 +299,7 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
 #' @return List with vector field and critical simplices
 #' @keywords internal
 proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
-  result <- proc_lowerSTAR_cpp(list_lowerSTAR, vertex)
+  result <- process_lowerSTAR_cpp(list_lowerSTAR, vertex) # proc_lowerSTAR_cpp()
   return(list(
     VE_ = result$VE_,
     CR_ = gtools::mixedsort(result$CR_)
