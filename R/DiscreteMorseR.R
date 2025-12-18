@@ -139,6 +139,55 @@ get_CCMESH <- function(alphahull, select_largest = TRUE) {
   }
 }
 
+#' Ultra-fast simplex extraction (C++ backend)
+#'
+#' @param mesh Mesh object from get_CCMESH()
+#' @param txt_dirout Directory for output files (optional)
+#' @return List of processed simplices
+#' @keywords internal
+get_SIMPLICES <- function(mesh, txt_dirout = "") {
+  
+  # Input validation
+  if (is.null(mesh) || is.null(mesh$vertices) || is.null(mesh$faces) || is.null(mesh$edges)) {
+    stop("Invalid mesh structure")
+  }
+  
+  # Get input_truth
+  input_truth = attr(mesh, "input_truth")
+  if (is.null(input_truth)) {
+    stop("input_truth attribute is missing from mesh")
+  }
+  
+  # Call C++ function
+  result = get_SIMPLICES_cpp(
+    as.matrix(mesh$vertices),
+    as.matrix(mesh$faces),
+    as.matrix(mesh$edges),
+    as.integer(input_truth)
+  )
+  
+  # Write to files if requested
+  if (txt_dirout != "") {
+    dir.create(txt_dirout, showWarnings = FALSE, recursive = TRUE)
+    
+    # Write vertices
+    write.table(result$vertices, 
+                file = file.path(txt_dirout, "vertices.txt"),
+                sep = "\t", row.names = FALSE, quote = FALSE)
+    
+    # Write edges
+    write.table(result$edges,
+                file = file.path(txt_dirout, "edges.txt"),
+                sep = "\t", row.names = FALSE, quote = FALSE)
+    
+    # Write faces
+    write.table(result$faces,
+                file = file.path(txt_dirout, "faces.txt"),
+                sep = "\t", row.names = FALSE, quote = FALSE)
+  }
+  
+  return(result)
+}
 
 #' Extract and process simplices from mesh
 #'
@@ -146,7 +195,7 @@ get_CCMESH <- function(alphahull, select_largest = TRUE) {
 #' @param txt_dirout Directory for output files (optional)
 #' @return List of processed simplices
 #' @keywords internal
-get_SIMPLICES <- function(mesh, txt_dirout = "") {
+get_SIMPLICESold <- function(mesh, txt_dirout = "") {
   
   # Vertices (0-simplex) - Safe for parallel
   mesh_ver = as.data.frame(mesh$vertices)
@@ -299,7 +348,7 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
 #' @return List with vector field and critical simplices
 #' @keywords internal
 proc_lowerSTAR <- function(list_lowerSTAR, vertex) {
-  result <- proc_lowerSTAR_cpp(list_lowerSTAR, vertex) # process_lowerSTAR_cpp()
+  result <- process_lowerSTAR_cpp(list_lowerSTAR, vertex) # proc_lowerSTAR_cpp()
   return(list(
     VE_ = result$VE_,
     CR_ = gtools::mixedsort(result$CR_)
