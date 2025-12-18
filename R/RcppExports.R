@@ -13,8 +13,8 @@ get_PRECOMPUTEDvert_cpp <- function(lexi_ids, lexi_labels) {
     .Call(`_DiscreteMorseR_get_PRECOMPUTEDvert_cpp`, lexi_ids, lexi_labels)
 }
 
-get_SIMPLICES_fast_cpp <- function(vertices_mat, faces_mat, edges_mat, input_truth) {
-    .Call(`_DiscreteMorseR_get_SIMPLICES_fast_cpp`, vertices_mat, faces_mat, edges_mat, input_truth)
+get_SIMPLICES_cpp <- function(vertices_mat, faces_mat, edges_mat, input_truth) {
+    .Call(`_DiscreteMorseR_get_SIMPLICES_cpp`, vertices_mat, faces_mat, edges_mat, input_truth)
 }
 
 get_simplexCENTER_cpp <- function(simplex, vertices) {

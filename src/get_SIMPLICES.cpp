@@ -19,7 +19,7 @@ bool compareByZ(const std::pair<double, int>& a, const std::pair<double, int>& b
 }
 
 // [[Rcpp::export]]
-List get_SIMPLICES_fast_cpp(NumericMatrix vertices_mat, 
+List get_SIMPLICES_cpp(NumericMatrix vertices_mat, 
                             NumericMatrix faces_mat, 
                             NumericMatrix edges_mat,
                             IntegerVector input_truth) {
