@@ -12,6 +12,7 @@ DataFrame get_vertTO_cpp(DataFrame vertex, DataFrame edge, DataFrame face) {
   
   // Get the data columns once
   CharacterVector vertex_i123 = vertex["i123"];
+  CharacterVector vertex_Z = vertex["Z"];  // Get Z-values for vertices!
   CharacterVector edge_lexi_id = edge["lexi_id"];
   CharacterVector edge_lexi_label = edge["lexi_label"];
   CharacterVector face_lexi_id = face["lexi_id"];
@@ -41,19 +42,26 @@ DataFrame get_vertTO_cpp(DataFrame vertex, DataFrame edge, DataFrame face) {
     }
   }
   
-  // Output vectors - use std::vector for efficient growth
+  // Output vectors
   std::vector<std::string> vertTO_lexi_label;
   std::vector<std::string> vertTO_lexi_id;
   
-  // Reserve space for efficiency
-  vertTO_lexi_label.reserve(n_vertex * 12);
-  vertTO_lexi_id.reserve(n_vertex * 12);
+  // Estimate size: vertices + edges*2 + faces*3 (worst case)
+  vertTO_lexi_label.reserve(n_vertex + n_edge * 2 + n_face * 3);
+  vertTO_lexi_id.reserve(n_vertex + n_edge * 2 + n_face * 3);
   
-  // Main processing: O(n_vertex) with direct lookups!
+  // Main processing
   for (int i = 0; i < n_vertex; i++) {
     std::string v_id = as<std::string>(vertex_i123[i]);
+    std::string v_z = as<std::string>(vertex_Z[i]);  // Get vertex Z-value
     
-    // Lookup edges for this vertex - O(1)
+    // CRITICAL FIX: Add the vertex itself as a 0-simplex!
+    // A vertex appears in its own lower star as a 0-simplex
+    // lexi_label = Z-value, lexi_id = vertex ID
+    vertTO_lexi_id.push_back(v_id);
+    vertTO_lexi_label.push_back(v_z);
+    
+    // Lookup edges for this vertex
     auto edge_it = vertex_to_edges.find(v_id);
     if (edge_it != vertex_to_edges.end()) {
       for (int edge_idx : edge_it->second) {
@@ -62,7 +70,7 @@ DataFrame get_vertTO_cpp(DataFrame vertex, DataFrame edge, DataFrame face) {
       }
     }
     
-    // Lookup faces for this vertex - O(1)
+    // Lookup faces for this vertex
     auto face_it = vertex_to_faces.find(v_id);
     if (face_it != vertex_to_faces.end()) {
       for (int face_idx : face_it->second) {

@@ -145,7 +145,7 @@ get_CCMESH <- function(alphahull, select_largest = TRUE) {
 #' @param txt_dirout Directory for output files (optional)
 #' @return List of processed simplices
 #' @keywords internal
-get_SIMPLICES <- function(mesh, txt_dirout = "") {
+get_SIMPLICESold <- function(mesh, txt_dirout = "") {
   
   # Input validation
   if (is.null(mesh) || is.null(mesh$vertices) || is.null(mesh$faces) || is.null(mesh$edges)) {
@@ -195,7 +195,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
 #' @param txt_dirout Directory for output files (optional)
 #' @return List of processed simplices
 #' @keywords internal
-get_SIMPLICESold <- function(mesh, txt_dirout = "") {
+get_SIMPLICES <- function(mesh, txt_dirout = "") {
   
   # Vertices (0-simplex) - Safe for parallel
   mesh_ver = as.data.frame(mesh$vertices)

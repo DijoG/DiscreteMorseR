@@ -2,7 +2,7 @@
 % Please edit documentation in R/DiscreteMorseR.R
 \name{get_SIMPLICES}
 \alias{get_SIMPLICES}
-\title{Ultra-fast simplex extraction (C++ backend)}
+\title{Extract and process simplices from mesh}
 \usage{
 get_SIMPLICES(mesh, txt_dirout = "")
 }
@@ -15,6 +15,6 @@ get_SIMPLICES(mesh, txt_dirout = "")
 List of processed simplices
 }
 \description{
-Ultra-fast simplex extraction (C++ backend)
+Extract and process simplices from mesh
 }
 \keyword{internal}
