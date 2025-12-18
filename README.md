@@ -129,7 +129,7 @@ print(ppp)
 ```r
 DiscreteMorseR::save_MORSE_2d(
   morse_complex,
-  filename = "D:/Gergo/DiscreteMorseR/png/DMR02v.png",
+  filename = "D:/Gergo/DiscreteMorseR/png/DMRxz.png",
   projection = "XZ",
   point_alpha = .6,
   point_size = .8,
