@@ -62,7 +62,7 @@ morse_complex <- DiscreteMorseR::compute_MORSE_complex(
   batch_size = 5000  # Increase for large datasets
 )  
 tictoc::toc()
-# ~3.5 minutes for typical TLS tree point clouds
+# ~2.5 minutes for typical TLS tree point clouds
 ```
 <img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRprocv.png" width="800">
 
@@ -70,17 +70,17 @@ tictoc::toc()
 - ✅ **226,267 vertices** processed in parallel  
 - ✅ **12 cores** utilized (~95% CPU efficiency)
 - ✅ **100% completion rate** - all lower star sets computed
-- ✅ **Complete Morse analysis** in ~3.5 minutes
+- ✅ **Complete Morse analysis** in ~2.5 minutes
 - ✅ **Automatic file export** of all results
 
-## Analyze results
+## Analyze results 
 ```r
 crit_types <- sapply(strsplit(morse_complex$critical, " "), length)
 table(crit_types)
 # 1 = vertices (0-simplices, minima), 2 = edges (1-simplices), 3 = faces (2-simplices)
 crit_types
      1      2      3 
-225146    121    982  
+225137    115   1005   
 
 ```
 ## Visualization
@@ -96,7 +96,7 @@ pp <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(pp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRxz.png" width="800">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xz.png" width="800">
 
 ```r
 # Multi-panel: all projections
@@ -110,7 +110,7 @@ ppp <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(ppp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMRxy.png" width="800" height="800">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xy.png" width="800" height="800">
 
 ```r
 # Multi-panel: all projections
@@ -123,13 +123,13 @@ ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
 )
 print(ppp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR3.png" width="800" height="800">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_3.png" width="800" height="800">
 
 ## Save Visualization
 ```r
 DiscreteMorseR::save_MORSE_2d(
   morse_complex,
-  filename = "D:/Gergo/DiscreteMorseR/png/DMRxz.png",
+  filename = "D:/Gergo/DiscreteMorseR/png/DMR_xz.png",
   projection = "XZ",
   point_alpha = .6,
   point_size = .8,
