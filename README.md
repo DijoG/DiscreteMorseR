@@ -68,7 +68,7 @@ tictoc::toc()
 
 **🚀 Performance Highlights:**
 - ✅ **226,267 vertices** processed in parallel  
-- ✅ **12 cores** utilized (~95% CPU efficiency)
+- ✅ **12 cores** utilized (~92% CPU efficiency)
 - ✅ **100% completion rate** - all lower star sets computed
 - ✅ **Complete Morse analysis** in ~2.5 minutes
 - ✅ **Automatic file export** of all results
