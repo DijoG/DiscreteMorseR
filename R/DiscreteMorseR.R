@@ -1,10 +1,25 @@
-#' Discrete Morse Theory Analysis
+#' DiscreteMorseR: Discrete Morse Theory Analysis for 3D Meshes
 #' 
-#' @description Compute Morse vector field and critical simplices from 3D meshes.
-#' @docType package
+#' @description 
+#' A package for computing discrete Morse vector fields, critical simplices,
+#' and performing topological analysis of 3D mesh data using Discrete Morse
+#' Theory.
+#' 
+#' @details 
+#' The package provides functions to analyze 3D triangular meshes, compute
+#' discrete Morse functions, identify critical simplices, and visualize
+#' the Morse complex structure.
+#'
+#' @author Gergő Diószegi
+#' @keywords internal
+"_PACKAGE"
+
+## usethis namespace: start
 #' @useDynLib DiscreteMorseR, .registration = TRUE
 #' @importFrom Rcpp evalCpp
+#' @importFrom Rcpp sourceCpp
 #' @import dplyr purrr stringr data.table gtools readr future furrr
+## usethis namespace: end
 NULL
 
 #' Add decimal formatting

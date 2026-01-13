@@ -99,7 +99,7 @@ print(p)
 <img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xz.png" width="800">
 
 ```r
-# Multi-panel: all projections
+# Multi-panel: XY projection
 pp <- DiscreteMorseR::visualize_MORSE_2d(
   morse_complex, 
   projection = "XY",
