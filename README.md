@@ -85,7 +85,7 @@ crit_types
 ```
 ## Visualization
 ```r
-# Critical simplices only  
+# Critical simplices only: XZ projection
 p <- DiscreteMorseR::visualize_MORSE_2d(
   morse_complex, 
   projection = "XZ",
@@ -99,7 +99,7 @@ print(p)
 <img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xz.png" width="800">
 
 ```r
-# Multi-panel: XY projection
+# Critical simplices only: XY projection
 pp <- DiscreteMorseR::visualize_MORSE_2d(
   morse_complex, 
   projection = "XY",
@@ -113,7 +113,7 @@ print(pp)
 <img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xy.png" width="800" height="800">
 
 ```r
-# Multi-panel: all projections
+# Critical simplices only: all projections
 ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
   morse_complex, 
   point_alpha = .6,
