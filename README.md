@@ -110,7 +110,7 @@ pp <- DiscreteMorseR::visualize_MORSE_2d(
 )
 print(pp)
 ```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xy.png" width="800" height="800">
+<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xy.png" width="800">
 
 ```r
 # Critical simplices only: all projections
