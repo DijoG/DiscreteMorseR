@@ -10,7 +10,7 @@
 #' discrete Morse functions, identify critical simplices, and visualize
 #' the Morse complex structure.
 #'
-#' @author Gergő Diószegi
+#' @author Gergo Dioszegi
 #' @keywords internal
 "_PACKAGE"
 
@@ -18,9 +18,25 @@
 #' @useDynLib DiscreteMorseR, .registration = TRUE
 #' @importFrom Rcpp evalCpp
 #' @importFrom Rcpp sourceCpp
-#' @import dplyr purrr stringr data.table gtools readr future furrr
+#' @importFrom utils write.table
+#' @importFrom dplyr left_join rename mutate
+#' @importFrom dplyr %>%
+#' @importFrom purrr map map2
+#' @importFrom stringr str_trim str_split str_c
+#' @importFrom data.table data.table
+#' @importFrom gtools mixedorder
+#' @importFrom readr write_tsv
+#' @importFrom future plan
+#' @importFrom furrr future_map
 ## usethis namespace: end
 NULL
+
+# Declare global variables to avoid R CMD check NOTES
+utils::globalVariables(c(
+  "X", "Y", "Z", "i1", "i2", "i3", 
+  "ii1Z", "ii2Z", "ii3Z", 
+  "type", "x", "y"
+))
 
 #' Add decimal formatting
 #' 
@@ -317,7 +333,7 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
 #' @return Combined lower star results
 #' @export
 compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
-                                      cores = NULL, batch_size = NULL) {
+                                       cores = NULL, batch_size = NULL) {
   
   if (!requireNamespace("clustermq", quietly = TRUE)) {
     stop("Package 'clustermq' required. Install with: install.packages('clustermq')")
@@ -346,13 +362,13 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   
   if (.Platform$OS.type == "windows") {
     options(clustermq.scheduler = "multiprocess")
-    message("🔧 Windows: Using 'multiprocess' scheduler")
+    message("Windows: Using 'multiprocess' scheduler")
   } else {
     options(clustermq.scheduler = "multicore")
     if (Sys.info()["sysname"] == "Darwin") {
-      message("🔧 macOS: Using 'multicore' scheduler")
+      message("macOS: Using 'multicore' scheduler")
     } else {
-      message("🔧 Linux/Unix: Using 'multicore' scheduler")
+      message("Linux/Unix: Using 'multicore' scheduler")
     }
   }
   
@@ -377,7 +393,7 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   total_batches = length(batches)
   
-  message("🚀 ROCKET-PARALLEL clustermq: ", n_vertex, " vertices, ", 
+  message("ROCKET-PARALLEL clustermq: ", n_vertex, " vertices, ", 
           total_batches, " batches, ", cores, " cores")
   
   # Pre-compute connections - let C++ errors propagate naturally
@@ -498,7 +514,7 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   
   # Calculate success rate (should now be 100%!)
   success_rate = round(length(final_results) / n_vertex * 100, 1)
-  message("✅ PARALLEL complete: ", length(final_results), 
+  message("PARALLEL complete: ", length(final_results), 
           " lower star sets (", success_rate, "%)")
   
   if (success_rate < 100) {

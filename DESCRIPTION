@@ -4,9 +4,9 @@ Title: Discrete Morse Theory for 3D Meshes and Point Clouds
 Version: 1.0.0
 Date: 2026-06-24
 Authors@R: c(
-    person("Gergő", "Diószegi", email = "dijogergo@gmail.com", 
+    person("Gergo", "Dioszegi", email = "dijogergo@gmail.com", 
            role = c("aut", "cre", "cph"), 
-           comment = c(ORCID = "0000-0000-0000-0000"))
+           comment = c(ORCID = "0009-0003-3454-9093"))
   )
 Description: Ultra-fast computation of discrete Morse gradient vector fields 
     and critical simplices (0-simplices: vertices, 1-simplices: edges, 
