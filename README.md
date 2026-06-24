@@ -9,8 +9,10 @@ The DiscreteMorseR package delivers ultra-fast C++ backend Morse gradient field 
 # Installation
 
 ```r
-devtools::install_github("DijoG/DiscreteMorseR")
+# 
 devtools::install_github("DijoG/ahull3D")
+install.packages("DiscreteMorseR")
+
 library(DiscreteMorseR)
 ```
 Quick test of C++ functions
