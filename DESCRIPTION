@@ -1,14 +1,14 @@
 Package: DiscreteMorseR
 Type: Package
 Title: Discrete Morse Theory for 3D Meshes and Point Clouds
-Version: 1.0.0
+Version: 1.0.1
 Date: 2026-06-24
 Authors@R: c(
     person("Gergo", "Dioszegi", email = "dijogergo@gmail.com", 
            role = c("aut", "cre", "cph"), 
            comment = c(ORCID = "0009-0003-3454-9093"))
   )
-Description: Ultra-fast computation of discrete Morse gradient vector fields 
+Description: Ultra-fast computation of discrete Morse gradient vector fields
     and critical simplices (0-simplices: vertices, 1-simplices: edges, 
     2-simplices: faces) on 3D triangular meshes and point clouds. 
     Provides C++ backend with parallel processing for large-scale 
@@ -35,11 +35,11 @@ Suggests:
     patchwork (>= 1.1.0),
     testthat (>= 3.0.0),
     knitr (>= 1.30),
-    rmarkdown (>= 2.0)
+    rmarkdown (>= 2.0),
+    ahull3D
 LinkingTo: Rcpp, RcppArmadillo
-SystemRequirements: C++11
+SystemRequirements: C++17
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.1
-VignetteBuilder: knitr
 Config/testthat/edition: 3

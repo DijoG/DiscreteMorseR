@@ -1,7 +1,7 @@
 # DiscreteMorseR 🚀
 
-[![Parallel](https://img.shields.io/badge/Parallel-20+%20cores-green.svg)]()
-[![C++](https://img.shields.io/badge/C++-Optimized-blue.svg)]()
+[![Parallel](https://img.shields.io/badge/Parallel-20+%20cores-green.svg)](https://github.com/DijoG/DiscreteMorseR)
+[![C++](https://img.shields.io/badge/C++-Optimized-blue.svg)](https://github.com/DijoG/DiscreteMorseR)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 The DiscreteMorseR package delivers ultra-fast C++ backend Morse gradient field and critical simplices (0-simplices: vertices, 1-simplices: edges, 2-simplices: faces) parallel computation. Perfect for LiDAR data, computational topology, and Morse theory applications.
@@ -13,7 +13,8 @@ The DiscreteMorseR package delivers ultra-fast C++ backend Morse gradient field 
 install.packages("DiscreteMorseR")
 
 # From GitHub
-devtools::install_github("DijoG/DiscreteMorseR")
+install.packages(c("Rcpp", "data.table", "dplyr", "purrr", "stringr"))
+devtools::install_github("DijoG/ahull3D")
 
 library(DiscreteMorseR)
 ```
@@ -24,19 +25,30 @@ DiscreteMorseR::add_DECIMAL(215.2585589, 3)
 ```
 # Dependencies
 
-  - `lidR` - LiDAR data processing
-  - `tidyverse` - Data manipulation
+## Required
+
+  - `Rcpp` - C++ integration
   - `data.table` - Fast data operations
-  - `clustermq` - Parallelization backend 
+  - `dplyr`, `purrr`, `stringr` - Data manipulation
+
+## Optional (for specific features)
+
+  - `ggplot2`, `patchwork` - Visualization
+  - `clustermq` - Parallel processing backend 
+  - `tictoc` - Timing benchmarks
 
 # Usage
 
 ## Data Preparation
 ```r
-library(lidR);library(tidyverse);library(data.table)
+library(lidR)
+library(tidyverse)
+library(data.table)
+library(ahull3D)
 
 # Load LiDAR data
-trees <- lidR::readLAS("D:/Gergo/DiscreteMorseR/lasref/12tree_exampleN.las")
+laz_file <- system.file("extdata", "12trees.laz", package = "ahull3D")
+trees <- lidR::readLAS(laz_file)
 lidR::plot(trees, pal = "grey98")
 
 # Create matrix input for alpha hull
@@ -48,7 +60,7 @@ lasdf <-
 
 # Generate alpha hull
 a <- ahull3D::ahull3D(lasdf[,1:3], 
-  input_truth = lasdff[,4], 
+  input_truth = lasdf[,4], 
   alpha = .1) 
 
 # Extract largest connected component mesh

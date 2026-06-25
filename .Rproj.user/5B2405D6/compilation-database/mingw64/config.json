@@ -1,6 +1,6 @@
 {
     "args": [
-        "-std=gnu++11",
+        "-std=gnu++17",
         "-IC:/PROGRA~1/R/R-42~1.2/include",
         "-DNDEBUG",
         "-IC:/Users/Jura/AppData/Local/R/win-library/4.2/Rcpp/include",
@@ -18,7 +18,7 @@
     ],
     "pch": "RcppArmadillo",
     "is_cpp": true,
-    "hash": "1782305342",
+    "hash": "178237831417823313351782331333",
     "compiler": "17486434899767519736",
     "rversion": "4.2.2",
     "dbversion": 4
