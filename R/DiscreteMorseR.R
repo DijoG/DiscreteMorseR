@@ -364,13 +364,13 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   
   if (.Platform$OS.type == "windows") {
     options(clustermq.scheduler = "multiprocess")
-    message("---> Windows: Using 'multiprocess' scheduler")
+    message("--> Windows: Using 'multiprocess' scheduler")
   } else {
     options(clustermq.scheduler = "multicore")
     if (Sys.info()["sysname"] == "Darwin") {
-      message("---> macOS: Using 'multicore' scheduler")
+      message("--> macOS: Using 'multicore' scheduler")
     } else {
-      message("---> Linux/Unix: Using 'multicore' scheduler")
+      message("--> Linux/Unix: Using 'multicore' scheduler")
     }
   }
   
@@ -395,7 +395,7 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
   batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
   total_batches = length(batches)
   
-  message("---> ROCKET-PARALLEL clustermq: ", n_vertex, " vertices, ", 
+  message("--> ROCKET-PARALLEL clustermq: ", n_vertex, " vertices, ", 
           total_batches, " batches, ", cores, " cores")
   
   # Pre-compute connections - let C++ errors propagate naturally

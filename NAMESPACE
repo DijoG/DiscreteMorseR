@@ -24,3 +24,4 @@ importFrom(stringr,str_split)
 importFrom(stringr,str_trim)
 importFrom(utils,write.table)
 useDynLib(DiscreteMorseR, .registration = TRUE)
+
