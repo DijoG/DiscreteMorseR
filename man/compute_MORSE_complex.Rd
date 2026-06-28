@@ -33,3 +33,28 @@ List with Morse vector field and critical simplices
 \description{
 Compute Morse complex from mesh
 }
+\examples{
+\donttest{
+# Create a tetrahedron mesh
+vertices <- matrix(c(0,0,0, 1,0,0, 0,1,0, 0,0,1), ncol=3, byrow=TRUE)
+colnames(vertices) <- c("X", "Y", "Z")
+faces <- matrix(c(1,2,3, 1,2,4, 1,3,4, 2,3,4), ncol=3, byrow=TRUE)
+colnames(faces) <- c("i1", "i2", "i3")
+
+# Extract unique edges from faces
+all_edges <- rbind(faces[,c(1,2)], faces[,c(1,3)], faces[,c(2,3)])
+unique_edges <- unique(t(apply(all_edges, 1, sort)))
+edges <- data.frame(i1 = unique_edges[,1], i2 = unique_edges[,2])
+
+# Create mesh object
+mesh <- list(vertices = vertices, faces = faces, edges = edges)
+attr(mesh, "input_truth") <- 1:nrow(vertices)
+
+# Compute Morse complex (sequential mode for CRAN checks)
+result <- compute_MORSE_complex(mesh, parallel = FALSE)
+
+# View results
+print(paste("Critical simplices:", length(result$critical)))
+print(paste("Gradient pairs:", length(result$vector_field)))
+}
+}

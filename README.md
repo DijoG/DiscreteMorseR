@@ -9,12 +9,18 @@ The DiscreteMorseR package delivers ultra-fast C++ backend Morse gradient field 
 # Installation
 
 ```r
-# From CRAN (recommended)
+# From CRAN (once available - recommended)
 install.packages("DiscreteMorseR")
 
-# From GitHub
+# ahull3D and lidR are not on CRAN - install from GitHub
+remotes::install_github("DijoG/ahull3D")
+remotes::install_github("r-lidar/lidR")
+
+# For development version from GitHub
+# remotes::install_github("DijoG/DiscreteMorseR")
+
+# Install recommended dependencies
 install.packages(c("Rcpp", "data.table", "dplyr", "purrr", "stringr"))
-devtools::install_github("DijoG/ahull3D")
 
 library(DiscreteMorseR)
 ```
@@ -53,7 +59,7 @@ lidR::plot(trees, pal = "grey98")
 
 # Create matrix input for alpha hull
 lasdf <- 
-  ilas@data[, c("X", "Y", "Z", "pid")] %>%
+  trees@data[, c("X", "Y", "Z", "pid")] %>%
   as.data.frame() %>%
   distinct(X, Y, Z, .keep_all = TRUE) %>%
   as.matrix()
@@ -73,7 +79,7 @@ mesh <- DiscreteMorseR::get_CCMESH(a)
 tictoc::tic()
 morse_complex <- DiscreteMorseR::compute_MORSE_complex(
   mesh, 
-  output_dir = "D:/Gergo/DiscreteMorseR/12_output",
+  output_dir = "12_output",
   cores = 12,
   batch_size = 5000  # Increase for large datasets
 )  

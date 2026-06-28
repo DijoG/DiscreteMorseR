@@ -1,20 +1,23 @@
 Package: DiscreteMorseR
 Type: Package
-Title: Discrete Morse Theory for 3D Meshes and Point Clouds
-Version: 1.0.1
+Title: Discrete Morse Theory for 3D Meshes Derived from Point Clouds
+Version: 1.0.0
 Date: 2026-06-24
 Authors@R: c(
     person("Gergo", "Dioszegi", email = "dijogergo@gmail.com", 
            role = c("aut", "cre", "cph"), 
            comment = c(ORCID = "0009-0003-3454-9093"))
   )
-Description: Ultra-fast computation of discrete Morse gradient vector fields
+Description: Ultra-fast computation of discrete Morse (Marston Morse) gradient vector fields
     and critical simplices (0-simplices: vertices, 1-simplices: edges, 
-    2-simplices: faces) on 3D triangular meshes and point clouds. 
+    2-simplices: faces) on 3D triangular meshes from point clouds. 
     Provides C++ backend with parallel processing for large-scale 
     topological analysis, including connected component analysis and 
     visualization tools. Perfect for LiDAR data, computational topology, 
     and geometric analysis applications.
+    The implementation follows Forman (1998) <doi:10.1007/PL00009307> for 
+    discrete Morse theory, with extensions for 3D mesh processing.
+Language: en-US
 License: MIT + file LICENSE
 URL: https://github.com/DijoG/DiscreteMorseR
 BugReports: https://github.com/DijoG/DiscreteMorseR/issues
@@ -36,7 +39,7 @@ Suggests:
     testthat (>= 3.0.0),
     knitr (>= 1.30),
     rmarkdown (>= 2.0),
-    ahull3D
+    tictoc   
 LinkingTo: Rcpp, RcppArmadillo
 SystemRequirements: C++17
 Encoding: UTF-8

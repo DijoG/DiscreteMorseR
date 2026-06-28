@@ -1,3 +1,2 @@
 # src/Makevars.win
 CXX_STD = CXX17
-PKG_CXXFLAGS = -O3 -Wall -pedantic
