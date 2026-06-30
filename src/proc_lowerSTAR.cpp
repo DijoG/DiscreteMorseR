@@ -20,26 +20,58 @@ SimplexInfo parseSimplex(const std::string& simplex_id, const std::string& simpl
   info.id = simplex_id;
   info.label = simplex_label;
   
+  // Check for empty or NA
+  if (simplex_id.empty() || simplex_id == "NA" || simplex_id == "NA_STRING") {
+    info.dimension = -1;
+    return info;
+  }
+  
   std::istringstream iss(simplex_id);
   std::string token;
   while (iss >> token) {
-    info.vertices.push_back(std::stoi(token));
+    // Clean token: only digits
+    std::string clean_token;
+    for (char c : token) {
+      if (std::isdigit(c)) {
+        clean_token += c;
+      }
+    }
+    if (!clean_token.empty()) {
+      try {
+        info.vertices.push_back(std::stoi(clean_token));
+      } catch (...) {
+        // Skip invalid tokens
+      }
+    }
   }
-  info.dimension = info.vertices.size() - 1;
   
-  std::sort(info.vertices.begin(), info.vertices.end());
+  info.dimension = info.vertices.size() - 1;
   return info;
 }
 
 // Get first value from label (for sorting by height)
 double getFirstValue(const std::string& label) {
+  // Check for empty string or "NA"
+  if (label.empty() || label == "NA" || label == "NA_STRING") {
+    return 0.0;
+  }
+  
   std::istringstream iss(label);
   std::string token;
   if (iss >> token) {
-    try {
-      return std::stod(token);
-    } catch (...) {
-      return 0.0;
+    // Remove any non-numeric characters except '.' and '-'
+    std::string clean_token;
+    for (char c : token) {
+      if (std::isdigit(c) || c == '.' || c == '-') {
+        clean_token += c;
+      }
+    }
+    if (!clean_token.empty()) {
+      try {
+        return std::stod(clean_token);
+      } catch (...) {
+        return 0.0;
+      }
     }
   }
   return 0.0;
@@ -68,6 +100,8 @@ List proc_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex) {
     
     // Parse all simplices in this lower star
     std::vector<SimplexInfo> simplices;
+    simplices.reserve(lexi_id.size());  // Pre-allocate for performance
+    
     for (int j = 0; j < lexi_id.size(); j++) {
       simplices.push_back(parseSimplex(
           as<std::string>(lexi_id[j]),
@@ -83,6 +117,12 @@ List proc_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex) {
     
     // Separate by dimension
     std::vector<SimplexInfo> vertices, edges, faces;
+    
+    // Pre-allocate memory to avoid reallocations
+    vertices.reserve(simplices.size() / 3);
+    edges.reserve(simplices.size() / 3);
+    faces.reserve(simplices.size() / 3);
+    
     for (const auto& simplex : simplices) {
       if (simplex.dimension == 0) vertices.push_back(simplex);
       else if (simplex.dimension == 1) edges.push_back(simplex);
