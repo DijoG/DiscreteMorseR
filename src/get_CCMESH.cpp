@@ -141,7 +141,7 @@ public:
   }
   
 private:
-  List build_component_ultrafast(const NumericMatrix& vertices, 
+  List build_component_ultrafast(const NumericMatrix& vertices,
                                  const NumericMatrix& faces,
                                  const IntegerVector& input_truth) {
     
@@ -159,9 +159,13 @@ private:
       comp_input_truth = IntegerVector(num_comp_vertices);
     }
     
+    // <-- FIX: local per-component marker, not the shared visited array
+    std::vector<char> in_comp(vertices.nrow() + 1, 0);
+    
     for (int i = 0; i < num_comp_vertices; ++i) {
       const int old_idx = component_vertices[i];
       vertex_map[old_idx] = i + 1;
+      in_comp[old_idx] = 1;                              // <-- FIX
       comp_vertices(i, 0) = vertices(old_idx - 1, 0);
       comp_vertices(i, 1) = vertices(old_idx - 1, 1);
       comp_vertices(i, 2) = vertices(old_idx - 1, 2);
@@ -175,8 +179,8 @@ private:
     int face_count = 0;
     const int num_faces = faces.nrow();
     for (int i = 0; i < num_faces; ++i) {
-      if (visited[faces(i, 0)] && visited[faces(i, 1)] && visited[faces(i, 2)]) {
-        face_count++;
+      if (in_comp[faces(i, 0)] && in_comp[faces(i, 1)] && in_comp[faces(i, 2)]) {
+        face_count++;                                    // <-- FIX
       }
     }
     
@@ -188,7 +192,7 @@ private:
       const int v2 = faces(i, 1);
       const int v3 = faces(i, 2);
       
-      if (visited[v1] && visited[v2] && visited[v3]) {
+      if (in_comp[v1] && in_comp[v2] && in_comp[v3]) {   // <-- FIX
         comp_faces(face_idx, 0) = vertex_map[v1];
         comp_faces(face_idx, 1) = vertex_map[v2];
         comp_faces(face_idx, 2) = vertex_map[v3];

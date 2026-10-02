@@ -13,7 +13,7 @@ compute_MORSE_complex(
 )
 }
 \arguments{
-\item{mesh}{Mesh object from MeshesOperations}
+\item{mesh}{Mesh object from get_CCMESH()}
 
 \item{output_dir}{Optional directory to save results. If provided, writes:
 - vertices.txt, edges.txt, faces.txt: Mesh simplices
@@ -28,13 +28,15 @@ compute_MORSE_complex(
 \item{batch_size}{Number of vertices per batch in parallel processing}
 }
 \value{
-List with Morse vector field and critical simplices
+A list with three components:
+  \item{vector_field}{Character vector of gradient pairs in format "from:to"}
+  \item{critical}{Character vector of critical simplices (vertices, edges, faces)}
+  \item{simplices}{List containing vertices, edges, and faces data frames}
 }
 \description{
 Compute Morse complex from mesh
 }
 \examples{
-\donttest{
 # Create a tetrahedron mesh
 vertices <- matrix(c(0,0,0, 1,0,0, 0,1,0, 0,0,1), ncol=3, byrow=TRUE)
 colnames(vertices) <- c("X", "Y", "Z")
@@ -56,5 +58,4 @@ result <- compute_MORSE_complex(mesh, parallel = FALSE)
 # View results
 print(paste("Critical simplices:", length(result$critical)))
 print(paste("Gradient pairs:", length(result$vector_field)))
-}
 }

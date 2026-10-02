@@ -27,8 +27,90 @@ compute_lowerSTAR_parallel(
 \item{batch_size}{Number of vertices per batch}
 }
 \value{
-Combined lower star results
+A list of lower star sets, one for each vertex. Each element contains:
+  \item{id}{Vertex ID}
+  \item{lexi_label}{Lexicographically sorted simplex label}
+  \item{lexi_id}{Lexicographically sorted simplex IDs}
 }
 \description{
 Compute lower star in parallel
+}
+\examples{
+# Small example for automatic testing 
+# Create synthetic mesh
+set.seed(456)
+n_verts <- 50
+
+# Generate random vertices
+vertices <- matrix(rnorm(n_verts * 3), ncol = 3)
+colnames(vertices) <- c("X", "Y", "Z")
+
+# Create edges (connect each vertex to 3-5 random others)
+edges_list <- list()
+for (i in 1:n_verts) {
+  n_edges <- sample(3:5, 1)
+  neighbors <- sample(setdiff(1:n_verts, i), min(n_edges, n_verts-1))
+  for (j in neighbors) {
+    edges_list[[length(edges_list) + 1]] <- c(min(i, j), max(i, j))
+  }
+}
+edges <- unique(do.call(rbind, edges_list))
+colnames(edges) <- c("i1", "i2")
+
+# Create faces (triangulate using edge connections)
+faces_list <- list()
+for (i in 1:n_verts) {
+  connected <- unique(c(
+    edges[edges[,1] == i, 2],
+    edges[edges[,2] == i, 1]
+  ))
+  if (length(connected) >= 3) {
+    for (j in 1:(min(length(connected), 4) - 1)) {
+      for (k in (j+1):(min(length(connected), 4))) {
+        if (length(faces_list) < n_verts * 2) {
+          faces_list[[length(faces_list) + 1]] <- c(i, connected[j], connected[k])
+        }
+      }
+    }
+  }
+}
+faces <- unique(do.call(rbind, faces_list))
+colnames(faces) <- c("i1", "i2", "i3")
+
+# Create mesh object
+mesh <- list(
+  vertices = vertices,
+  faces = faces,
+  edges = data.frame(edges)
+)
+attr(mesh, "input_truth") <- 1:n_verts
+
+# Compute Morse complex sequentially (for CRAN checks)
+result_seq <- compute_MORSE_complex(mesh, parallel = FALSE)
+
+# Results
+str(result_seq)
+
+\donttest{
+# Parallel computation (if clustermq is available)
+if (requireNamespace("clustermq", quietly = TRUE)) {
+  # Compute in parallel with 2 cores
+  result_par <- compute_MORSE_complex(
+    mesh, 
+    output_dir = tempdir(),
+    parallel = TRUE,
+    cores = 2
+  )
+  
+  cat("Parallel results:\n")
+  cat("  Critical simplices:", length(result_par$critical), "\n")
+  cat("  Gradient pairs:", length(result_par$vector_field), "\n")
+  
+  # Verify results match
+  if (length(result_seq$critical) == length(result_par$critical) &&
+      length(result_seq$vector_field) == length(result_par$vector_field)) {
+    cat("[OK] Sequential and parallel results match!\n")
+  }
+}
+}
 }

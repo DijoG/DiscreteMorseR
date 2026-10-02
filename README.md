@@ -133,31 +133,3 @@ pp <- DiscreteMorseR::visualize_MORSE_2d(
 print(pp)
 ```
 <img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_xy.png" width="800">
-
-```r
-# Critical simplices only: all projections
-ppp <- DiscreteMorseR::visualize_MORSE_2d_panel(
-  morse_complex, 
-  point_alpha = .6,
-  point_size = .8,
-  plot_gradient = FALSE,
-  max_points = 30000
-)
-print(ppp)
-```
-<img align="bottom" src="https://raw.githubusercontent.com/DijoG/storage/main/DMR/DMR_3.png" width="800" height="800">
-
-## Save Visualization
-```r
-DiscreteMorseR::save_MORSE_2d(
-  morse_complex,
-  filename = "D:/Gergo/DiscreteMorseR/png/DMR_xz.png",
-  projection = "XZ",
-  point_alpha = .6,
-  point_size = .8,
-  plot_gradient = F,
-  max_points = 30000,
-  width = 6,
-  height = 5
-)
-```

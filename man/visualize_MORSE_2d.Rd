@@ -30,8 +30,75 @@ visualize_MORSE_2d(
 \item{plot_critical}{Whether to plot critical points (default: TRUE)}
 }
 \value{
-ggplot2 object
+A ggplot2 object showing the Morse complex in 2D projection.
+  The plot displays:
+  - Grey arrows: Gradient vector field pairs
+  - Red circles: Critical vertices (0-simplices)
+  - Blue plus signs: Critical edges (1-simplices)
+  - Green diamonds: Critical faces (2-simplices)
 }
 \description{
 Fast Morse complex visualization using get_simplexCENTER()
+}
+\examples{
+# Simple example (runs in < 5 seconds)
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  set.seed(123)
+  vertices <- matrix(rnorm(30), ncol = 3)
+  colnames(vertices) <- c("X", "Y", "Z")
+  
+  edges <- data.frame(
+    i1 = sample(1:10, 15, replace = TRUE),
+    i2 = sample(1:10, 15, replace = TRUE)
+  )
+  edges <- unique(edges[edges$i1 != edges$i2, ])
+  
+  faces <- data.frame(
+    i1 = sample(1:10, 10, replace = TRUE),
+    i2 = sample(1:10, 10, replace = TRUE),
+    i3 = sample(1:10, 10, replace = TRUE)
+  )
+  faces <- unique(faces[faces$i1 != faces$i2 & 
+                        faces$i2 != faces$i3 & 
+                        faces$i1 != faces$i3, ])
+  
+  mesh <- list(vertices = vertices, faces = as.matrix(faces), edges = edges)
+  attr(mesh, "input_truth") <- 1:nrow(vertices)
+  
+  result <- compute_MORSE_complex(mesh, parallel = FALSE)
+  p <- visualize_MORSE_2d(result, plot_gradient = FALSE)
+  print(p)
+}
+
+\donttest{
+# Larger example with gradient arrows
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  set.seed(456)
+  n_verts <- 80
+  vertices <- matrix(rnorm(n_verts * 3), ncol = 3)
+  colnames(vertices) <- c("X", "Y", "Z")
+  
+  edges <- data.frame(
+    i1 = sample(1:n_verts, 40, replace = TRUE),
+    i2 = sample(1:n_verts, 40, replace = TRUE)
+  )
+  edges <- unique(edges[edges$i1 != edges$i2, ])
+  
+  faces <- data.frame(
+    i1 = sample(1:n_verts, 30, replace = TRUE),
+    i2 = sample(1:n_verts, 30, replace = TRUE),
+    i3 = sample(1:n_verts, 30, replace = TRUE)
+  )
+  faces <- unique(faces[faces$i1 != faces$i2 & 
+                        faces$i2 != faces$i3 & 
+                        faces$i1 != faces$i3, ])
+  
+  mesh <- list(vertices = vertices, faces = as.matrix(faces), edges = edges)
+  attr(mesh, "input_truth") <- 1:nrow(vertices)
+  
+  result <- compute_MORSE_complex(mesh, parallel = FALSE)
+  p <- visualize_MORSE_2d(result, plot_gradient = TRUE)
+  print(p)
+}
+}
 }
