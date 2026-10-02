@@ -58,7 +58,7 @@ get_lexIDLAB <- function(df) {
   
   # Split and get sorting indices
   LA_split = stringr::str_split(LA, " ")
-  m1 = purrr::map(LA_split, ~get_MIXEDSORT_cpp(add_DECIMAL(as.numeric(.), k = 9)))
+  m1 = purrr::map(LA_split, ~get_MIXEDSORT_cpp(add_DECIMAL(suppressWarnings(as.numeric(.)), k = 9)))
   
   # Apply sorting to both label types
   mlab = purrr::map2(LA_split, m1, ~paste(.x[.y], collapse = " "))
@@ -381,7 +381,7 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
   ))
 }
 
-#' Compute lower star filtration for vertices
+#' Compute lower star filtration for vertices (optimized)
 #'
 #' @param vertex Vertex data
 #' @param edge Edge data  
@@ -392,68 +392,70 @@ get_SIMPLICES <- function(mesh, txt_dirout = "") {
 #' @keywords internal
 get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
   
-  # Pre-compute connections
+  # ---- 1. C++ pre-computation ------------------------------------------
   all_connections = get_vertTO_cpp(vertex, edge, face)
-  lexi_labels = all_connections$lexi_label
-  lexi_ids = all_connections$lexi_id
+  precomputed = get_PRECOMPUTEDvert_cpp(
+    all_connections$lexi_id,
+    all_connections$lexi_label
+  )
   
-  # Pre-compute everything upfront
-  first_verts = sapply(strsplit(lexi_labels, " "), function(x) as.numeric(x[1]))
-  simplex_vertices = strsplit(lexi_ids, " ")
+  vertex_index = precomputed$vertex_index   # named list: vid -> row indices
+  first_verts_z = precomputed$first_verts_z  # numeric, aligned with rows
   
-  # Build reverse index: vertex_id -> simplex_indices
-  vertex_to_simplices = list()
-  for (i in seq_along(simplex_vertices)) {
-    for (v_id in simplex_vertices[[i]]) {
-      if (is.null(vertex_to_simplices[[v_id]])) {
-        vertex_to_simplices[[v_id]] = integer(0)
-      }
-      vertex_to_simplices[[v_id]] = c(vertex_to_simplices[[v_id]], i)
+  # ---- 2. Extract plain vectors (avoid data.frame overhead in loop) ----
+  vid = vertex$i123
+  vz = as.numeric(vertex$Z)
+  n = length(vid)
+  
+  lexi_label_col = all_connections$lexi_label
+  lexi_id_col = all_connections$lexi_id
+  
+  # ---- 3. Per-vertex loop ---------------------------------------------
+  lowerSTAR = vector("list", n)
+  
+  for (i in seq_len(n)) {
+    key = as.character(vid[i])
+    idx = vertex_index[[key]]
+    
+    if (is.null(idx) || length(idx) == 0L) next
+    
+    # Filter by Z threshold — must match OLD behavior exactly:
+    #   - old: first_verts was NA for "NA" labels -> NA <= v_z -> NA -> dropped by [NA]
+    #   - new: first_verts_z is 0.0 for "NA" labels -> 0.0 <= v_z -> TRUE -> kept
+    # To match the old behavior, explicitly exclude rows whose label is NA / "NA".
+    idx_label = lexi_label_col[idx]
+    not_na = !is.na(idx_label) & idx_label != "NA"
+    keep = idx[not_na & first_verts_z[idx] <= vz[i]]
+    
+    if (length(keep) == 0L) next
+    
+    if (length(keep) > 1L) {
+      ord = suppressWarnings(gtools::mixedorder(lexi_label_col[keep]))
+      keep = keep[ord]
+    }
+    
+    lowerSTAR[[i]] = data.frame(
+      id = rep.int(vid[i], length(keep)),
+      lexi_label = lexi_label_col[keep],
+      lexi_id = lexi_id_col[keep],
+      stringsAsFactors = FALSE
+    )
+  }
+  
+  # ---- 4. Optional: write to file (single connection) ------------------
+  if (!is.null(dirout)) {
+    path = file.path(dirout, "lowerSTAR.txt")
+    con = file(path, open = "wt")
+    on.exit(close(con), add = TRUE)
+    
+    for (res in lowerSTAR) {
+      if (is.null(res)) next
+      writeLines(do.call(paste, c(res, sep = "\t")), con)
     }
   }
   
-  lowerSTAR = vector("list", nrow(vertex))
-  
-  for (i in 1:nrow(vertex)) {
-    v_id = as.character(vertex$i123[i])
-    v_z = as.numeric(vertex$Z[i])
-    
-    simplex_indices = vertex_to_simplices[[v_id]]
-    
-    if (!is.null(simplex_indices) && length(simplex_indices) > 0) {
-      valid_indices = simplex_indices[first_verts[simplex_indices] <= v_z]
-      
-      if (length(valid_indices) > 0) {
-        valid_simplices = all_connections[valid_indices, ]
-        
-        order_idx = gtools::mixedorder(valid_simplices$lexi_label, decreasing = FALSE)
-        sorted_simplices = valid_simplices[order_idx, ]
-        
-        # Create data.frame WITHOUT factors
-        result = data.frame(
-          id = rep(as.integer(v_id), nrow(sorted_simplices)),
-          lexi_label = sorted_simplices$lexi_label,
-          lexi_id = sorted_simplices$lexi_id,
-          stringsAsFactors = FALSE
-        )
-        
-        lowerSTAR[[i]] = result
-        
-        if (!is.null(dirout)) {
-          output_lines = apply(result, 1, function(row) {
-            paste(row, collapse = "\t")
-          })
-          
-          # Append to file with cat() for exact format matching
-          cat(output_lines, file = file.path(dirout, "lowerSTAR.txt"), 
-              sep = "\n", append = TRUE)
-        }
-      }
-    }
-  }
-  
-  lowerSTAR = lowerSTAR[!sapply(lowerSTAR, is.null)]
-  return(lowerSTAR)
+  # ---- 5. Drop empty entries ------------------------------------------
+  lowerSTAR[!vapply(lowerSTAR, is.null, logical(1))]
 }
 
 #' Compute lower star in parallel 
@@ -547,29 +549,20 @@ get_lowerSTAR <- function(vertex, edge, face, dirout = NULL, cores = 1) {
 #' }
 #' }
 #' @export
-compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL, 
+compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
                                        cores = NULL, batch_size = NULL) {
   
   if (!requireNamespace("clustermq", quietly = TRUE)) {
     stop("Package 'clustermq' required. Install with: install.packages('clustermq')")
   }
   
-  # Validate inputs
-  if (is.null(vertex) || nrow(vertex) == 0) {
-    stop("Vertex data is empty or NULL")
-  }
-  if (is.null(edge) || nrow(edge) == 0) {
-    stop("Edge data is empty or NULL")
-  }
-  if (is.null(face) || nrow(face) == 0) {
-    stop("Face data is empty or NULL")
-  }
+  if (is.null(vertex) || nrow(vertex) == 0) stop("Vertex data is empty or NULL")
+  if (is.null(edge)   || nrow(edge)   == 0) stop("Edge data is empty or NULL")
+  if (is.null(face)   || nrow(face)   == 0) stop("Face data is empty or NULL")
   
-  # Save original options to restore later
   original_scheduler = getOption("clustermq.scheduler")
-  original_timeout = getOption("clustermq.worker.timeout")
+  original_timeout   = getOption("clustermq.worker.timeout")
   
-  # Set appropriate scheduler with cleanup
   on.exit({
     options(clustermq.scheduler = original_scheduler)
     options(clustermq.worker.timeout = original_timeout)
@@ -587,93 +580,94 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
     }
   }
   
-  # Set reasonable timeout (10 mins)
-  options(clustermq.worker.timeout = 600)  
+  options(clustermq.worker.timeout = 600)
   
-  # Cap number of cores to 32
   if (is.null(cores)) {
-    cores = min(parallel::detectCores() - 1, 32)  
+    cores = min(parallel::detectCores() - 1, 32)
   } else {
-    cores = min(cores, parallel::detectCores(), 32) 
+    cores = min(cores, parallel::detectCores(), 32)
   }
   
   n_vertex = nrow(vertex)
   
-  # Optimal batch sizing with validation
   if (is.null(batch_size)) {
     batch_size = optimal_BATCH_size(n_vertex, cores)
   }
-  batch_size = max(1, min(batch_size, n_vertex)) # Ensure valid batch size
+  batch_size = max(1, min(batch_size, n_vertex))
   
-  batches = split(1:n_vertex, ceiling(seq_along(1:n_vertex) / batch_size))
+  batches = split(seq_len(n_vertex),
+                  ceiling(seq_along(seq_len(n_vertex)) / batch_size))
   total_batches = length(batches)
   
-  message("--> ROCKET-PARALLEL clustermq: ", n_vertex, " vertices, ", 
+  message("--> ROCKET-PARALLEL clustermq: ", n_vertex, " vertices, ",
           total_batches, " batches, ", cores, " cores")
   
-  # Pre-compute connections - let C++ errors propagate naturally
   message("1 > Pre-computing vertex connections...")
   all_connections = get_vertTO_cpp(vertex, edge, face)
   
+  # Pre-computed NA mask — one entry per row of `connections`.
+  # Hoisted out of the per-vertex loop so workers don't recompute it.
+  not_na_global = !is.na(all_connections$lexi_label) &
+    all_connections$lexi_label != "NA"
+  
   message("2 > Building optimized vertex-simplex index...")
   precomputed_data = get_PRECOMPUTEDvert_cpp(
-    all_connections$lexi_id, 
-    all_connections$lexi_label
-  )
+    all_connections$lexi_id, all_connections$lexi_label)
   
   vertex_to_simplices = precomputed_data$vertex_index
-  first_verts_z = precomputed_data$first_verts_z
+  first_verts_z       = precomputed_data$first_verts_z
   
-  # CRITICAL FIX: Always returns PROPER results (for no data ~ 0-simplex)
-  worker_function = function(batch_indices, vertex_i123, vertex_Z, 
-                             connections, vertex_index, first_z, output_path) {
+  worker_function = function(batch_indices, vertex_i123, vertex_Z,
+                             connections, vertex_index, first_z,
+                             not_na_global, output_path) {
     
     batch_results = list()
     
     for (i in batch_indices) {
       v_id = vertex_i123[i]
-      v_z = as.numeric(vertex_Z[i])
+      v_z  = as.numeric(vertex_Z[i])
       
-      # Ultra-fast lookup using pre-built index
       simplex_indices = vertex_index[[as.character(v_id)]]
       
       result = NULL
       
       if (!is.null(simplex_indices) && length(simplex_indices) > 0) {
-        # Get valid simplices using pre-computed Z values
-        valid_indices = simplex_indices[first_z[simplex_indices] <= v_z]
+        
+        # Filter NA labels AND Z threshold, matching the sequential path.
+        # `not_na_global` is a logical vector indexed by row of `connections`,
+        # so `not_na_global[simplex_indices]` returns the NA mask for the
+        # candidate rows directly.
+        valid_indices <- simplex_indices[
+          not_na_global[simplex_indices] &
+            first_z[simplex_indices] <= v_z
+        ]
         
         if (length(valid_indices) > 0) {
-          # Extract valid simplices
           valid_simplices = connections[valid_indices, ]
           
-          # Fast sorting (only if needed for this vertex)
           if (nrow(valid_simplices) > 1) {
-            order_idx = order(gtools::mixedorder(valid_simplices$lexi_label, decreasing = FALSE))
+            order_idx = gtools::mixedorder(valid_simplices$lexi_label,
+                                           decreasing = FALSE)
             valid_simplices = valid_simplices[order_idx, ]
           }
           
-          # Create results efficiently
           result = data.frame(
-            id = rep(v_id, nrow(valid_simplices)),
+            id         = rep(v_id, nrow(valid_simplices)),
             lexi_label = valid_simplices$lexi_label,
-            lexi_id = valid_simplices$lexi_id,
+            lexi_id    = valid_simplices$lexi_id,
             stringsAsFactors = FALSE
           )
           
-          # Write to file ONLY for non-empty results
           if (!is.null(output_path)) {
             write.table(result, file = output_path,
-                        sep = "\t", append = TRUE, 
+                        sep = "\t", append = TRUE,
                         col.names = FALSE, row.names = FALSE,
                         quote = FALSE)
           }
         }
       }
       
-      # CRITICAL FIX: Create PROPER empty data frame
       if (is.null(result)) {
-        # Create properly structured empty data frame
         result = data.frame(
           id = integer(),
           lexi_label = character(),
@@ -686,54 +680,47 @@ compute_lowerSTAR_parallel <- function(vertex, edge, face, output_dir = NULL,
     }
     
     return(batch_results)
-  } 
+  }
   
-  # Prepare data for workers
   vertex_i123 = vertex$i123
-  vertex_Z = vertex$Z
+  vertex_Z    = vertex$Z
   output_path = if (!is.null(output_dir)) file.path(output_dir, "lowerSTAR.txt")
   
-  # Initialize output file
   if (!is.null(output_path)) {
-    if (file.exists(output_path)) {
-      file.remove(output_path)
-    }
-    # Create directory if it doesn't exist
+    if (file.exists(output_path)) file.remove(output_path)
     dir.create(dirname(output_path), showWarnings = FALSE, recursive = TRUE)
   }
   
-  # Diagnostic message
-  message("3 > Starting parallel workers with scheduler: '", 
+  message("3 > Starting parallel workers with scheduler: '",
           getOption("clustermq.scheduler"), "'")
   
-  # Run with clustermq - let errors propagate naturally
   results = clustermq::Q(
     fun = worker_function,
     batch_indices = batches,
     const = list(
-      vertex_i123 = vertex_i123,
-      vertex_Z = vertex_Z,
-      connections = all_connections,
-      vertex_index = vertex_to_simplices,
-      first_z = first_verts_z,
-      output_path = output_path
+      vertex_i123   = vertex_i123,
+      vertex_Z      = vertex_Z,
+      connections   = all_connections,
+      vertex_index  = vertex_to_simplices,
+      first_z       = first_verts_z,
+      not_na_global = not_na_global,
+      output_path   = output_path
     ),
-    n_jobs = min(cores, total_batches), # Don't create more jobs than batches
+    n_jobs = min(cores, total_batches),
     template = list(),
     export = list(gtools = "gtools"),
     chunk_size = 1
   )
   
-  # Combine results
   final_results = unlist(results, recursive = FALSE)
   
-  # Calculate success rate (should now be 100%!)
   success_rate = round(length(final_results) / n_vertex * 100, 1)
-  message("PARALLEL complete: ", length(final_results), 
+  message("PARALLEL complete: ", length(final_results),
           " lower star sets (", success_rate, "%)")
   
   if (success_rate < 100) {
-    warning("Some vertices may not have been processed correctly. Success rate: ", success_rate, "%")
+    warning("Some vertices may not have been processed correctly. Success rate: ",
+            success_rate, "%")
   }
   
   return(final_results)

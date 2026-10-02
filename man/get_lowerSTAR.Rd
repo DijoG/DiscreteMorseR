@@ -2,7 +2,7 @@
 % Please edit documentation in R/DiscreteMorseR.R
 \name{get_lowerSTAR}
 \alias{get_lowerSTAR}
-\title{Compute lower star filtration for vertices}
+\title{Compute lower star filtration for vertices (optimized)}
 \usage{
 get_lowerSTAR(vertex, edge, face, dirout = NULL, cores = 1)
 }
@@ -21,6 +21,6 @@ get_lowerSTAR(vertex, edge, face, dirout = NULL, cores = 1)
 List of lower star sets
 }
 \description{
-Compute lower star filtration for vertices
+Compute lower star filtration for vertices (optimized)
 }
 \keyword{internal}

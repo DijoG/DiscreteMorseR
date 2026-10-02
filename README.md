@@ -26,8 +26,8 @@ library(DiscreteMorseR)
 ```
 Quick test of C++ functions
 ```r
-DiscreteMorseR::get_MIXEDSORT_cpp(c("2", "1", "12 45", "25 256", "11 8", "256 23"))
-DiscreteMorseR::add_DECIMAL(215.2585589, 3)
+DiscreteMorseR:::get_MIXEDSORT_cpp(c("2", "1", "12 45", "25 256", "11 8", "256 23"))
+DiscreteMorseR:::add_DECIMAL(215.2585589, 3)
 ```
 # Dependencies
 

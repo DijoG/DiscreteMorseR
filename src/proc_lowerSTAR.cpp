@@ -98,22 +98,29 @@ List proc_lowerSTAR_cpp(List list_lowerSTAR, DataFrame vertex) {
     CharacterVector lexi_id = df["lexi_id"];
     CharacterVector lexi_label = df["lexi_label"];
     
-    // Parse all simplices in this lower star
+    // Parse all simplices in this lower star.
+    // Skip rows whose id/label is NA — they carry no information and would
+    // otherwise affect std::sort's (non-stable) tie-breaking.
     std::vector<SimplexInfo> simplices;
-    simplices.reserve(lexi_id.size());  // Pre-allocate for performance
+    simplices.reserve(lexi_id.size());
     
     for (int j = 0; j < lexi_id.size(); j++) {
-      simplices.push_back(parseSimplex(
-          as<std::string>(lexi_id[j]),
-          as<std::string>(lexi_label[j])
-      ));
+      SimplexInfo info = parseSimplex(
+        as<std::string>(lexi_id[j]),
+        as<std::string>(lexi_label[j])
+      );
+      if (info.dimension >= 0) {
+        simplices.push_back(std::move(info));
+      }
     }
     
-    // Sort simplices by their first label value (height)
-    std::sort(simplices.begin(), simplices.end(),
-              [](const SimplexInfo& a, const SimplexInfo& b) {
-                return getFirstValue(a.label) < getFirstValue(b.label);
-              });
+    // Sort simplices by their first label value (height).
+    // Stable sort: preserves input order for ties, so tie-breaking depends
+    // only on the R-side order (which is deterministic).
+    std::stable_sort(simplices.begin(), simplices.end(),
+                     [](const SimplexInfo& a, const SimplexInfo& b) {
+                       return getFirstValue(a.label) < getFirstValue(b.label);
+                     });
     
     // Separate by dimension
     std::vector<SimplexInfo> vertices, edges, faces;
