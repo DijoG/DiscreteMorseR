@@ -792,7 +792,11 @@ compute_MORSE_complex <- function(mesh, output_dir = NULL, parallel = TRUE,
   
   message("___ Step 2: Computing lower star filtration")
   
-  if (requireNamespace("clustermq", quietly = TRUE) && cores > 1) {
+  use_parallel <- isTRUE(parallel) &&
+    requireNamespace("clustermq", quietly = TRUE) &&
+    cores > 1
+  
+  if (use_parallel) {
     lower_star = compute_lowerSTAR_parallel(
       simplices$vertices, simplices$edges, simplices$faces, 
       output_dir, cores = cores, batch_size = batch_size
